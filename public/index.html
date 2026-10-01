@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>secret.boi.lu — messagerie privée et éphémère</title>
+  <meta name="description" content="Chat temporaire chiffré de bout en bout dans le navigateur. Le serveur relaie les données, il ne peut pas les lire.">
+  <meta name="theme-color" content="#0b0f14">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <a class="skip" href="#main">Aller au contenu</a>
+
+  <div id="app">
+
+    <!-- ===================== Accueil ===================== -->
+    <section id="view-home" class="view centered" hidden>
+      <main id="main" class="card hero">
+        <h1 class="brand"><span class="lock" aria-hidden="true">🔒</span> secret.boi.lu</h1>
+        <p class="lead">Messagerie privée et éphémère. Chiffrement de bout en bout dans votre navigateur&nbsp;: le serveur transporte les données, il ne peut pas les lire.</p>
+        <div class="stack">
+          <button id="btn-go-create" class="btn primary big" type="button">Créer un chat</button>
+          <button id="btn-go-join" class="btn big" type="button">Rejoindre un chat</button>
+        </div>
+        <div id="home-banner" class="banner" hidden></div>
+        <p class="fineprint">Aucune conversation n'est stockée. Les sessions sont détruites à la demande ou automatiquement.
+          <a href="/security">Comment ça marche&nbsp;?</a></p>
+      </main>
+    </section>
+
+    <!-- ===================== Création ===================== -->
+    <section id="view-create" class="view centered" hidden>
+      <main class="card">
+        <h2>Créer un chat</h2>
+        <form id="form-create" novalidate>
+          <div class="field">
+            <label for="create-max">Nombre maximal de participants</label>
+            <input id="create-max" name="max" type="number" inputmode="numeric" min="2" max="50" value="2" required>
+            <p class="hint">Entre 2 et 50. Vous pourrez verrouiller le chat à tout moment.</p>
+          </div>
+          <div class="field">
+            <label for="create-code">Code de chiffrement supplémentaire <span class="muted">(optionnel)</span></label>
+            <input id="create-code" name="code" type="password" autocomplete="off" maxlength="128" placeholder="****************">
+            <p class="hint">À transmettre aux participants par un autre canal que le lien. Sans ce code, le lien ne permet pas de déchiffrer la conversation. Il ne quitte jamais votre navigateur.</p>
+          </div>
+          <div class="field">
+            <label for="create-pass">Clé personnelle / phrase secrète <span class="muted">(optionnel, 8 à 52 caractères)</span></label>
+            <input id="create-pass" name="pass" type="password" autocomplete="off" minlength="8" maxlength="52">
+            <p class="hint">Si vous en définissez une, le lien d'invitation ne contient aucun secret&nbsp;: les participants devront saisir cette clé pour rejoindre. La clé cryptographique en est dérivée localement (PBKDF2, 600&nbsp;000 itérations) et n'est jamais envoyée ni stockée.</p>
+          </div>
+          <p id="create-error" class="error" role="alert" hidden></p>
+          <div class="row">
+            <button type="button" class="btn" data-nav="home">Retour</button>
+            <button type="submit" id="btn-create" class="btn primary">Créer le chat</button>
+          </div>
+        </form>
+      </main>
+    </section>
+
+    <!-- ===================== Invitation ===================== -->
+    <section id="view-invite" class="view centered" hidden>
+      <main class="card">
+        <h2>Chat créé</h2>
+        <p>Transmettez ces informations aux participants. Le serveur ne connaît ni le secret du lien, ni le code, ni la clé personnelle.</p>
+        <div class="field">
+          <label for="invite-link">Lien d'invitation</label>
+          <div class="row tight">
+            <input id="invite-link" type="text" readonly>
+            <button type="button" id="btn-copy-link" class="btn">Copier</button>
+          </div>
+          <p class="hint" id="invite-link-hint"></p>
+        </div>
+        <div class="field">
+          <label for="invite-id">Identifiant du chat</label>
+          <div class="row tight">
+            <input id="invite-id" type="text" readonly>
+            <button type="button" id="btn-copy-id" class="btn">Copier</button>
+          </div>
+        </div>
+        <ul id="invite-notes" class="notes"></ul>
+        <div class="row">
+          <button type="button" id="btn-enter" class="btn primary big">Entrer dans le chat</button>
+        </div>
+      </main>
+    </section>
+
+    <!-- ===================== Rejoindre ===================== -->
+    <section id="view-join" class="view centered" hidden>
+      <main class="card">
+        <h2>Rejoindre un chat</h2>
+        <form id="form-join" novalidate>
+          <div class="field" id="join-field-link">
+            <label for="join-link">Lien d'invitation ou identifiant du chat</label>
+            <input id="join-link" type="text" autocomplete="off" spellcheck="false" placeholder="https://secret.boi.lu/c/…">
+          </div>
+          <p id="join-session" class="hint" hidden></p>
+          <div class="field" id="join-field-pass">
+            <label for="join-pass">Clé personnelle <span class="muted">(si le créateur en a défini une)</span></label>
+            <input id="join-pass" type="password" autocomplete="off" minlength="8" maxlength="52">
+          </div>
+          <div class="field">
+            <label for="join-code">Code de chiffrement supplémentaire <span class="muted">(si fourni)</span></label>
+            <input id="join-code" type="password" autocomplete="off" maxlength="128">
+            <p class="hint">Laissez vide si le créateur n'en a pas défini. Un code erroné ne permet pas de déchiffrer la conversation.</p>
+          </div>
+          <p id="join-error" class="error" role="alert" hidden></p>
+          <div class="row">
+            <button type="button" class="btn" data-nav="home">Retour</button>
+            <button type="submit" id="btn-join" class="btn primary">Rejoindre le chat</button>
+          </div>
+        </form>
+      </main>
+    </section>
+
+    <!-- ===================== Chat ===================== -->
+    <section id="view-chat" class="view chat" hidden>
+      <header class="chat-header">
+        <div class="chat-title">
+          <span class="brand small"><span aria-hidden="true">🔒</span> secret.boi.lu</span>
+          <span id="chat-session" class="muted mono"></span>
+        </div>
+        <div class="indicators">
+          <button type="button" id="btn-security" class="pill" aria-haspopup="dialog">🟡 Établissement du chiffrement…</button>
+          <button type="button" id="btn-participants" class="pill" aria-haspopup="dialog">🟢 1 participant connecté</button>
+          <span id="pill-conn" class="pill quiet">⏳ Connexion…</span>
+          <span id="pill-lock" class="pill quiet" hidden>🔒 Verrouillé</span>
+        </div>
+        <div class="actions">
+          <button type="button" id="btn-invite" class="btn small">+ Rejoindre</button>
+          <button type="button" id="btn-lock" class="btn small" hidden>🔒 Verrouiller le chat</button>
+          <button type="button" id="btn-destroy" class="btn small danger" hidden>💥 Détruire le chat</button>
+          <button type="button" id="btn-leave" class="btn small">Quitter</button>
+        </div>
+      </header>
+
+      <div id="chat-banner" class="banner" role="status" hidden></div>
+
+      <main id="messages" class="messages" role="log" aria-live="polite" aria-relevant="additions" tabindex="0"></main>
+
+      <form id="composer" class="composer">
+        <label for="input-message" class="sr-only">Message</label>
+        <textarea id="input-message" rows="1" placeholder="Message chiffré de bout en bout…" autocomplete="off" disabled></textarea>
+        <input type="file" id="input-file" class="sr-only" multiple tabindex="-1">
+        <button type="button" id="btn-file" class="btn icon" aria-label="Envoyer un fichier chiffré" disabled>📎</button>
+        <button type="submit" id="btn-send" class="btn primary" disabled>Envoyer</button>
+      </form>
+
+      <div id="dropzone" class="dropzone" hidden aria-hidden="true">Déposez les fichiers pour les chiffrer et les envoyer</div>
+
+      <dialog id="panel-participants" class="panel" aria-labelledby="participants-title">
+        <h3 id="participants-title">Participants</h3>
+        <ul id="participants-list" class="list"></ul>
+        <p class="hint">Les pseudonymes sont temporaires. Un participant « non vérifié » est connecté au réseau mais ne possède pas le bon secret&nbsp;: il ne reçoit pas les clés et ne peut rien lire.</p>
+        <button type="button" class="btn" data-close>Fermer</button>
+      </dialog>
+
+      <dialog id="panel-security" class="panel" aria-labelledby="security-title">
+        <h3 id="security-title">Sécurité de la session</h3>
+        <dl id="security-info" class="kv"></dl>
+        <p class="hint">Le serveur ne possède pas les clés permettant de déchiffrer cette conversation. Les captures d'écran ne peuvent pas être totalement empêchées par un site web. <a href="/security" target="_blank" rel="noopener">Détails techniques</a></p>
+        <button type="button" class="btn" data-close>Fermer</button>
+      </dialog>
+
+      <dialog id="dlg-destroy" class="panel" aria-labelledby="destroy-title">
+        <h3 id="destroy-title">Détruire le chat&nbsp;?</h3>
+        <p>La session sera immédiatement invalidée pour tous les participants, les données temporaires du serveur et les clés locales seront supprimées.</p>
+        <p class="hint">Cette action ne peut pas effacer les captures d'écran, photos ou fichiers déjà enregistrés par des participants.</p>
+        <div class="row">
+          <button type="button" class="btn" data-close>Annuler</button>
+          <button type="button" id="btn-destroy-confirm" class="btn danger">💥 Détruire maintenant</button>
+        </div>
+      </dialog>
+    </section>
+
+  </div>
+
+  <div id="watermark" class="watermark" aria-hidden="true"></div>
+  <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>

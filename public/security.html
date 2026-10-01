@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>secret.boi.lu — sécurité et fonctionnement</title>
+  <meta name="description" content="Architecture de chiffrement, modèle de menace, données visibles par le serveur, cycle de vie des clés et limites de secret.boi.lu.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/doc.css">
+</head>
+<body>
+  <main class="doc">
+    <p><a href="/">← secret.boi.lu</a></p>
+    <h1>Sécurité et fonctionnement</h1>
+    <p class="lead">Cette page explique ce que secret.boi.lu fait réellement, ce que le serveur voit, ce qu'il ne voit jamais, et ce que le système ne peut pas garantir. Elle est volontairement factuelle : aucune promesse du type « impossible à espionner ».</p>
+
+    <h2>1. Principe</h2>
+    <p>Les messages et fichiers sont chiffrés dans votre navigateur avant d'être envoyés, et déchiffrés uniquement dans le navigateur des autres participants. Le serveur relaie des données chiffrées ; il ne possède pas les clés permettant de les lire. Rien n'est enregistré : une session vit en mémoire et disparaît à sa destruction ou à son expiration.</p>
+    <pre>Participant A ──(données chiffrées)──▶ Serveur ──(données chiffrées)──▶ Participant B</pre>
+    <p>La connexion entre votre navigateur et le serveur est protégée par TLS (HTTPS / WSS). Le chiffrement de bout en bout est une couche distincte, indépendante de TLS : même en lisant le trafic déchiffré côté serveur, on ne voit que des blobs AES‑GCM.</p>
+
+    <h2>2. Architecture de chiffrement</h2>
+    <p>Aucune cryptographie « maison » : uniquement des primitives standard exposées par la <strong>Web Crypto API</strong> du navigateur.</p>
+    <table>
+      <tr><th>Usage</th><th>Primitive</th></tr>
+      <tr><td>Secret de session</td><td>256 bits aléatoires (ou dérivés d'une clé personnelle)</td></tr>
+      <tr><td>Clé personnelle, code supplémentaire</td><td>PBKDF2‑HMAC‑SHA‑256, 600 000 itérations, sel lié à la session</td></tr>
+      <tr><td>Dérivation de clés</td><td>HKDF‑SHA‑256 avec étiquettes distinctes par usage</td></tr>
+      <tr><td>Authentification des participants</td><td>HMAC‑SHA‑256 des clés publiques, clé dérivée du secret partagé</td></tr>
+      <tr><td>Échange de clés</td><td>ECDH P‑256, paires éphémères générées à chaque connexion</td></tr>
+      <tr><td>Messages, fichiers, clés de groupe</td><td>AES‑256‑GCM (chiffrement authentifié), IV aléatoire, données associées liant salle / émetteur / époque / numéro</td></tr>
+    </table>
+    <p>Il n'y a pas de « clé SSL 4096 bits créée à la volée » et pas de RSA : les clés sont éphémères et ECDH offre une sécurité équivalente pour une fraction du coût. TLS protège le transport ; le chiffrement de bout en bout est généré côté client.</p>
+
+    <h3>Comment les clés circulent</h3>
+    <ol>
+      <li>Le créateur obtient un identifiant de session aléatoire (128 bits) du serveur et génère localement un <strong>secret de session</strong> S. S est placé dans le fragment du lien d'invitation (<code>#s=…</code>), que le navigateur n'envoie jamais au serveur. En mode « clé personnelle », S est dérivé de la phrase par PBKDF2 et le lien ne contient aucun secret.</li>
+      <li>Le <strong>code supplémentaire</strong>, s'il existe, est dérivé par PBKDF2 et sert de sel à la dérivation de la racine : <code>root = HKDF(S, sel = KDF(code))</code>. Sans le bon code, la racine est différente.</li>
+      <li>À chaque connexion, le navigateur génère une paire ECDH éphémère et annonce sa clé publique accompagnée d'un HMAC calculé avec une clé dérivée de <code>root</code>. Les autres participants vérifient ce HMAC : un participant avec un mauvais secret ou un mauvais code apparaît <em>non vérifié</em> et ne reçoit jamais de clé.</li>
+      <li>Le participant vérifié le plus ancien (le <em>meneur</em>) génère une <strong>clé de groupe</strong> AES‑256 et l'envoie à chaque participant vérifié, chiffrée avec une clé d'enveloppe dérivée de ECDH et de <code>root</code>. Le serveur relaie ces enveloppes sans pouvoir les ouvrir.</li>
+      <li>Chaque message est chiffré avec la clé de groupe, un numéro de séquence (anti‑rejeu) et des données associées liant salle, émetteur et époque.</li>
+    </ol>
+
+    <h2>3. Cycle de vie des clés</h2>
+    <ul>
+      <li><strong>Arrivée</strong> d'un participant vérifié : le meneur lui envoie la clé de groupe courante. Il ne reçoit aucun historique : le serveur n'en conserve pas.</li>
+      <li><strong>Départ</strong> d'un participant : le meneur génère une nouvelle clé de groupe (« époque ») et la distribue aux participants restants. Le participant parti ne peut pas lire la suite.</li>
+      <li><strong>Départ du meneur</strong> : le participant vérifié suivant devient meneur et effectue immédiatement une rotation.</li>
+      <li><strong>Clés privées</strong> ECDH : non exportables, détruites à la fermeture de l'onglet.</li>
+      <li><strong>Destruction</strong> : les clés d'époque et secrets bruts sont remis à zéro en mémoire, les références abandonnées, l'historique affiché effacé, les URL de fichiers révoquées, le stockage de session nettoyé.</li>
+    </ul>
+
+    <h2>4. Cycle de vie d'une session</h2>
+    <pre>Création → Session temporaire (mémoire) → Échange de données chiffrées → Destruction → Session inexistante</pre>
+    <ul>
+      <li>Durée de vie maximale : 24 heures après la création.</li>
+      <li>Une session vide (aucun participant connecté) est détruite après 10 minutes.</li>
+      <li>Le propriétaire peut verrouiller (bloquer les nouvelles connexions), déverrouiller, et détruire la session à tout moment. La destruction notifie et déconnecte tous les participants, puis efface les structures en mémoire.</li>
+      <li>L'arrêt du serveur détruit toutes les sessions.</li>
+    </ul>
+
+    <h2>5. Ce que le serveur voit</h2>
+    <table>
+      <tr><th>Donnée</th><th>Pourquoi</th><th>Durée</th></tr>
+      <tr><td>Identifiant de session, état verrouillé, nombre maximal</td><td>fonctionnement</td><td>mémoire, jusqu'à destruction / expiration</td></tr>
+      <tr><td>Haché SHA‑256 du jeton de propriétaire</td><td>vérifier verrouillage / destruction</td><td>idem</td></tr>
+      <tr><td>Identifiant temporaire, ordre d'arrivée, clé publique ECDH et HMAC de chaque participant</td><td>relais et présence</td><td>durée de la connexion</td></tr>
+      <tr><td>Blobs chiffrés (IV, texte chiffré, identifiant d'époque, numéro de séquence), leur taille et le moment de passage</td><td>relais</td><td>jamais conservés : transmis puis libérés</td></tr>
+      <tr><td>Adresse IP</td><td>limitation de débit</td><td>compteur en mémoire, purgé après 10 min d'inactivité, jamais journalisé</td></tr>
+    </table>
+
+    <h2>6. Ce que le serveur ne voit jamais</h2>
+    <ul>
+      <li>Les messages et fichiers en clair.</li>
+      <li>Le secret de session, le code supplémentaire, la clé personnelle, la racine dérivée.</li>
+      <li>Les clés privées ECDH, les clés d'enveloppe, les clés de groupe.</li>
+      <li>Les pseudonymes ne sont que des numéros d'ordre ; aucune donnée personnelle n'est demandée.</li>
+    </ul>
+
+    <h2>7. Politique de journaux</h2>
+    <p>Le serveur n'écrit dans ses journaux aucun message, aucune clé, aucun code, aucun identifiant de session ou de participant, aucune adresse IP. Au niveau par défaut, seuls des événements génériques sans identifiant (démarrage, erreurs internes, compteurs) sont émis. Des tests automatisés exécutent un serveur réel, font transiter des messages et des secrets, et vérifient qu'aucun d'eux n'apparaît sur sa sortie.</p>
+
+    <h2>8. Sécurité du transport et du site</h2>
+    <ul>
+      <li>HTTPS obligatoire en production, HSTS (2 ans, preload).</li>
+      <li>Content Security Policy stricte : aucun script ni style inline, aucune ressource tierce, intégration dans une iframe interdite.</li>
+      <li>Aucun cookie, aucune session serveur : pas de fixation de session ; les écritures et les WebSockets refusent les origines étrangères (CSRF / CSWSH).</li>
+      <li>Tout contenu est rendu comme texte, jamais comme HTML (XSS). Les fichiers reçus sont servis depuis des URL locales en <code>octet-stream</code> ; seules les images PNG, JPEG, GIF et WebP sont affichées en ligne.</li>
+      <li>Validation stricte de chaque message ; limitation de débit par adresse et par connexion ; taille maximale des trames ; expiration automatique.</li>
+      <li>Identifiants de session et jetons générés par un générateur cryptographique (128 / 256 bits).</li>
+    </ul>
+
+    <h2>9. Modèle de menace</h2>
+    <table>
+      <tr><th>Adversaire</th><th>Protection</th></tr>
+      <tr><td>Serveur curieux ou compromis</td><td>Confidentialité et intégrité préservées : il ne voit que des blobs chiffrés et ne peut ni forger un participant ni substituer une clé. Il peut en revanche couper la session ou mentir sur la présence (disponibilité).</td></tr>
+      <tr><td>Interception réseau</td><td>TLS, plus chiffrement de bout en bout indépendant.</td></tr>
+      <tr><td>Personne ayant le lien mais pas le code</td><td>Peut rejoindre le réseau, apparaît « non vérifié » aux yeux de tous, ne reçoit aucune clé, ne déchiffre rien.</td></tr>
+      <tr><td>Compromission ultérieure du lien ou du code</td><td>Les clés de groupe sont enveloppées avec des clés ECDH éphémères détruites : un enregistrement du trafic ne devient pas déchiffrable.</td></tr>
+      <tr><td>Participant légitime malveillant</td><td>Non protégé : il peut tout lire et tout copier. C'est inhérent à toute messagerie.</td></tr>
+      <tr><td>Capture d'écran, photo, enregistrement</td><td>Non garanti. Voir ci‑dessous.</td></tr>
+      <tr><td>Navigateur ou appareil compromis</td><td>Hors périmètre.</td></tr>
+      <tr><td>Force brute sur un code court</td><td>Ralentie (PBKDF2 600 000 itérations, limitation de débit), mais un code court reste faible : le code est un second facteur, le secret principal est aléatoire.</td></tr>
+    </table>
+
+    <h2>10. Captures d'écran : ce qui est possible, ce qui ne l'est pas</h2>
+    <p><strong>Un site web ne peut pas empêcher une capture d'écran</strong>, ni détecter une photo prise avec un autre appareil. secret.boi.lu ne prétend pas le faire.</p>
+    <p>Ce qui est fait :</p>
+    <ul>
+      <li>Les événements réellement exposés par le navigateur (touche Impr. écran, raccourcis macOS lorsqu'ils parviennent à la page) déclenchent une notification chiffrée, affichée aux <em>autres</em> participants : « ⚠️ Un événement de capture d'écran ou d'enregistrement a été détecté. » Aucune notification n'est émise sans événement observable, pour éviter les fausses alertes.</li>
+      <li>Un <strong>filigrane</strong> individuel, semi‑transparent et légèrement mobile, affiche « SECRET.BOI.LU • Participant‑N • Session XXXX » sur tout l'écran. Il ne contient aucune donnée personnelle. Il ne bloque rien : il permet d'identifier la source d'une fuite.</li>
+    </ul>
+
+    <h2>11. Autres limites assumées</h2>
+    <ul>
+      <li>Pas d'historique : un participant arrivé après un message ne le verra jamais.</li>
+      <li>Le secret contenu dans le lien reste dans l'historique du navigateur de chaque participant. Utilisez un code supplémentaire transmis par un autre canal, et effacez l'historique si nécessaire.</li>
+      <li>L'effacement de la mémoire en JavaScript est « au mieux » ; le ramasse‑miettes ne garantit rien.</li>
+      <li>La destruction ne peut pas effacer les captures, photos, enregistrements ou fichiers déjà téléchargés par des participants.</li>
+      <li>Le protocole de groupe est une distribution de clé par canaux pairwise, pas MLS : la rotation a lieu aux départs et changements de meneur, pas à chaque message.</li>
+    </ul>
+
+    <h2>12. Vérifier par vous‑même</h2>
+    <p>Le code cryptographique tient en deux fichiers lisibles : <code>/js/crypto.js</code> (primitives) et <code>/js/protocol.js</code> (gestion des clés de groupe). Le document d'architecture complet et les tests automatisés (serveur incapable de lire, mauvais code, rotation de clé, rejeu, verrouillage, destruction, expiration, en‑têtes, CSRF, XSS, fuite dans les journaux) sont publiés avec le code source.</p>
+    <p><a href="/">← Retour à l'accueil</a></p>
+  </main>
+</body>
+</html>
