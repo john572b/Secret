@@ -128,6 +128,7 @@ export function attachWebSocket(httpServer, ctx) {
     if (!st) return fail('not_joined');
     if (!isRelayData(msg.data, { maxCtLen })) return fail('bad_relay');
     const { room, memberId } = st;
+    store.touch(room);
     const out = { t: 'relay', from: memberId, data: msg.data };
     if (msg.to !== undefined) {
       if (!isMemberId(msg.to) || msg.to === memberId) return fail('bad_relay');

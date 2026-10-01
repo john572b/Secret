@@ -7,6 +7,7 @@ import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 export const DEFAULTS = {
   maxAgeMs: 24 * 60 * 60 * 1000,      // durée de vie maximale d'une session
   emptyTtlMs: 10 * 60 * 1000,         // destruction si la salle reste vide
+  idleTtlMs: 60 * 60 * 1000,          // destruction si aucun message ne circule
   maxParticipantsLimit: 50,           // plafond absolu du nombre de participants
   sweepIntervalMs: 15 * 1000,
 };
@@ -53,6 +54,7 @@ export class RoomStore {
       createdAt: now,
       expiresAt: now + this.opts.maxAgeMs,
       emptySince: now,
+      lastActivity: now,
       members: new Map(),
       nextIndex: 1,
       destroyed: false,
@@ -61,17 +63,24 @@ export class RoomStore {
     return { room, ownerToken };
   }
 
-  isExpired(room, now = Date.now()) {
-    if (now >= room.expiresAt) return true;
-    if (room.members.size === 0 && room.emptySince != null && now - room.emptySince >= this.opts.emptyTtlMs) return true;
-    return false;
+  // null si la salle est vivante, sinon la raison de sa fin.
+  expiryReason(room, now = Date.now()) {
+    if (now >= room.expiresAt) return 'expired';
+    if (room.members.size === 0 && room.emptySince != null && now - room.emptySince >= this.opts.emptyTtlMs) return 'expired';
+    if (now - room.lastActivity >= this.opts.idleTtlMs) return 'inactive';
+    return null;
   }
+
+  isExpired(room, now = Date.now()) { return this.expiryReason(room, now) !== null; }
+
+  touch(room, now = Date.now()) { room.lastActivity = now; }
 
   get(id) {
     const room = this.rooms.get(id);
     if (!room) return null;
-    if (this.isExpired(room)) {
-      this.destroy(id, 'expired');
+    const reason = this.expiryReason(room);
+    if (reason) {
+      this.destroy(id, reason);
       return null;
     }
     return room;
@@ -112,7 +121,8 @@ export class RoomStore {
   sweep(now = Date.now()) {
     let n = 0;
     for (const [id, room] of this.rooms) {
-      if (this.isExpired(room, now)) { this.destroy(id, 'expired'); n++; }
+      const reason = this.expiryReason(room, now);
+      if (reason) { this.destroy(id, reason); n++; }
     }
     return n;
   }

@@ -94,6 +94,7 @@ export default {
           maxPayloadBytes: MAX_PAYLOAD_BYTES,
           roomMaxAgeMs: ROOM_DEFAULTS.maxAgeMs,
           roomEmptyTtlMs: ROOM_DEFAULTS.emptyTtlMs,
+          roomIdleTtlMs: ROOM_DEFAULTS.idleTtlMs,
         },
       }, base);
     }

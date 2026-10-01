@@ -5,6 +5,7 @@
 import * as C from './crypto.js';
 import { $, $$, showView, toast, copyText, setError } from './ui.js';
 import { ChatView } from './chat.js';
+import { sanitizeName } from './protocol.js';
 
 const ROOM_RE = /^[A-Za-z0-9_-]{22}$/;
 let chat = null;
@@ -50,7 +51,7 @@ function secretFromHash(hash) {
 
 // --- Entrée dans le chat ---------------------------------------------------------------------
 
-async function enterChat({ roomId, secret, passphrase, code, ownerToken, isCreator }) {
+async function enterChat({ roomId, secret, passphrase, code, ownerToken, isCreator, name = null }) {
   // Dérivations locales (PBKDF2 peut prendre ~1 s sur mobile).
   const S = passphrase ? await C.secretFromPassphrase(passphrase, roomId) : secret;
   const codeSalt = await C.saltFromCode(code, roomId);
@@ -69,6 +70,7 @@ async function enterChat({ roomId, secret, passphrase, code, ownerToken, isCreat
     hasCode: !!code,
     passphraseMode: !!passphrase,
     isCreator,
+    name: sanitizeName(name),
     onExit: (reason) => {
       chat = null;
       go('view-home', { url: '/' });
@@ -77,6 +79,7 @@ async function enterChat({ roomId, secret, passphrase, code, ownerToken, isCreat
         showHomeBanner(`💥 Ce chat a été détruit${who}. Les clés et l'historique local ont été effacés.`, 'danger');
       }
       else if (reason === 'expired') showHomeBanner('⏳ Cette session a expiré et a été détruite.', '');
+      else if (reason === 'inactive') showHomeBanner('💤 Cette session a été détruite pour inactivité (aucun message depuis trop longtemps).', '');
       else if (reason === 'left') showHomeBanner('Vous avez quitté le chat. Les clés locales ont été effacées.', 'ok');
       else if (reason) showHomeBanner(reason, 'danger');
     },
@@ -93,6 +96,7 @@ $('#form-create').addEventListener('submit', async (e) => {
   const max = Number($('#create-max').value);
   const code = $('#create-code').value;
   const pass = $('#create-pass').value;
+  const name = $('#create-name').value;
   if (!Number.isInteger(max) || max < 2 || max > 50) return setError(errNode, 'Le nombre de participants doit être compris entre 2 et 50.');
   if (pass && !C.isValidPassphrase(pass)) return setError(errNode, 'La clé personnelle doit contenir entre 8 et 52 caractères.');
   if (code && code.length < 4) return setError(errNode, 'Le code supplémentaire doit contenir au moins 4 caractères.');
@@ -110,7 +114,7 @@ $('#form-create').addEventListener('submit', async (e) => {
     const { roomId, ownerToken } = await res.json();
     const secret = pass ? null : C.newRoomSecret();
     try { sessionStorage.setItem(`owner:${roomId}`, ownerToken); } catch { /* stockage indisponible */ }
-    showInvite({ roomId, secret, passphrase: pass || null, code: code || null, ownerToken });
+    showInvite({ roomId, secret, passphrase: pass || null, code: code || null, ownerToken, name });
     $('#create-code').value = '';
     $('#create-pass').value = '';
   } catch {
@@ -120,7 +124,7 @@ $('#form-create').addEventListener('submit', async (e) => {
   }
 });
 
-function showInvite({ roomId, secret, passphrase, code, ownerToken }) {
+function showInvite({ roomId, secret, passphrase, code, ownerToken, name }) {
   const link = `${location.origin}/c/${roomId}${secret ? `#s=${C.toB64url(secret)}` : ''}`;
   $('#invite-link').value = link;
   $('#invite-id').value = roomId;
@@ -139,7 +143,7 @@ function showInvite({ roomId, secret, passphrase, code, ownerToken }) {
   $('#btn-copy-id').onclick = async () => toast((await copyText(roomId)) ? 'Identifiant copié.' : 'Copie impossible.');
   $('#btn-enter').onclick = async () => {
     $('#btn-enter').disabled = true;
-    try { await enterChat({ roomId, secret, passphrase, code, ownerToken, isCreator: true }); }
+    try { await enterChat({ roomId, secret, passphrase, code, ownerToken, isCreator: true, name }); }
     finally { $('#btn-enter').disabled = false; }
   };
   go('view-invite', { url: '/' });
@@ -155,6 +159,7 @@ function resetJoinForm() {
   $('#join-session').hidden = true;
   $('#join-field-pass').hidden = false;
   $('#join-link').value = '';
+  $('#join-name').value = '';
   $('#join-pass').value = '';
   $('#join-code').value = '';
   setError($('#join-error'), '');
@@ -194,7 +199,7 @@ $('#form-join').addEventListener('submit', async (e) => {
     if (info.participants >= info.maxParticipants) return setError(errNode, 'Ce chat est complet.');
     let ownerToken = null;
     try { ownerToken = sessionStorage.getItem(`owner:${parsed.roomId}`); } catch { /* ignore */ }
-    await enterChat({ roomId: parsed.roomId, secret: parsed.secret ? parsed.secret : null, passphrase: parsed.secret ? null : pass, code: code || null, ownerToken, isCreator: false });
+    await enterChat({ roomId: parsed.roomId, secret: parsed.secret ? parsed.secret : null, passphrase: parsed.secret ? null : pass, code: code || null, ownerToken, isCreator: false, name: $('#join-name').value });
     $('#join-pass').value = '';
     $('#join-code').value = '';
   } catch {

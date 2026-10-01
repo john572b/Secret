@@ -25,6 +25,14 @@ export const MAX_RELAY_BYTES = 1024 * 1024;
 const MAX_ASSEMBLIES = 8;
 const ASSEMBLY_TTL_MS = 2 * 60 * 1000;
 
+export const NAME_MAX = 24;
+// Pseudonyme : texte libre, nettoyé, jamais transmis en clair (annoncé via un message chiffré).
+export function sanitizeName(v) {
+  if (typeof v !== 'string') return null;
+  const n = v.replace(/[\u0000-\u001f\u007f]/g, '').replace(/\s+/g, ' ').trim().slice(0, NAME_MAX);
+  return n.length ? n : null;
+}
+
 const msgAad = (roomId, from, epochId, seq) => `secret.boi.lu/v1/msg|${roomId}|${from}|${epochId}|${seq}`;
 const keyAad = (roomId, from, to, epochId) => `secret.boi.lu/v1/key|${roomId}|${from}|${to}|${epochId}`;
 
@@ -55,9 +63,11 @@ export class Session {
    * @param {(to: string|null, data: object) => void} o.send   relais vers le serveur
    * @param {object} [o.on]  { status(status), message(msg), members(list), notice(kind, info) }
    */
-  constructor({ roomId, root, send, on = {}, memberId = C.newMemberId() }) {
+  constructor({ roomId, root, send, on = {}, memberId = C.newMemberId(), name = null }) {
     this.roomId = roomId;
     this.memberId = memberId;
+    this.name = sanitizeName(name);
+    this.names = new Map();       // memberId -> pseudonyme annoncé (chiffré)
     this.root = root;
     this.sendRelay = send;
     this.on = on;
@@ -100,12 +110,15 @@ export class Session {
     await this.#ensureEpoch();
     if (this.isLeader && member.verified && this.currentEpochId) await this.#sendKey(member.memberId);
     this.#updateStatus();
+    // Le nouvel arrivant ne connaît pas encore notre pseudonyme : on l'annonce (chiffré).
+    if (member.verified) await this.announceName();
   }
 
   async memberLeft(memberId) {
     const m = this.members.get(memberId);
     if (!m) return;
     this.members.delete(memberId);
+    this.names.delete(memberId);
     this.#emitMembers();
     // Rotation : le participant parti ne doit pas pouvoir lire la suite.
     if (this.isLeader) await this.#rotate();
@@ -136,9 +149,15 @@ export class Session {
   }
 
   memberList() {
-    const list = [...this.members.values()].map((m) => ({ memberId: m.memberId, index: m.index, verified: m.verified, self: false }));
-    if (this.index != null) list.push({ memberId: this.memberId, index: this.index, verified: true, self: true });
+    const list = [...this.members.values()].map((m) => ({ memberId: m.memberId, index: m.index, verified: m.verified, self: false, name: this.names.get(m.memberId) ?? null }));
+    if (this.index != null) list.push({ memberId: this.memberId, index: this.index, verified: true, self: true, name: this.name });
     return list.sort((a, b) => a.index - b.index);
+  }
+
+  // Annonce chiffrée du pseudonyme à tous les participants vérifiés.
+  async announceName() {
+    if (!this.name || this.status !== Status.SECURE) return;
+    try { await this.#sendPayload({ kind: 'hello', name: this.name, ts: Date.now() }); } catch { /* clé non établie */ }
   }
 
   get verifiedCount() { return this.memberList().filter((m) => m.verified).length; }
@@ -190,9 +209,14 @@ export class Session {
     let decoded;
     try { decoded = decodePayload(bytes); } catch { return; }
     const { header, body } = decoded;
-    if (!['text', 'file', 'capture'].includes(header.kind)) return;
+    if (!['text', 'file', 'capture', 'hello'].includes(header.kind)) return;
+    if (header.kind === 'hello') {
+      const name = sanitizeName(header.name);
+      if (name && this.names.get(m.memberId) !== name) { this.names.set(m.memberId, name); this.#emitMembers(); }
+      return;
+    }
     if (header.kind === 'file') return this.#assemble(m, header, body, data.epochId);
-    this.on.message?.({ from: m.memberId, index: m.index, kind: header.kind, header, body, epochId: data.epochId });
+    this.on.message?.({ from: m.memberId, index: m.index, name: this.names.get(m.memberId) ?? null, kind: header.kind, header, body, epochId: data.epochId });
   }
 
   // Réassemblage des fichiers découpés. Chaque morceau est authentifié séparément ;
@@ -345,7 +369,11 @@ export class Session {
     if (this.currentEpochId) next = Status.SECURE;
     else if (this.members.size > 0 && [...this.members.values()].every((m) => !m.verified)) next = Status.MISMATCH;
     else next = Status.WAITING_KEY;
-    if (next !== this.status) { this.status = next; this.on.status?.(next); }
+    if (next !== this.status) {
+      this.status = next;
+      this.on.status?.(next);
+      if (next === Status.SECURE) this.announceName();
+    }
   }
 
   // --- Informations de sécurité (affichage) ------------------------------------------------
@@ -379,6 +407,7 @@ export class Session {
     this.received.clear();
     this.pending.length = 0;
     this.assemblies.clear();
+    this.names.clear();
     this.status = Status.DESTROYED;
     this.on.status?.(Status.DESTROYED);
   }

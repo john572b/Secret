@@ -26,6 +26,7 @@ export function createApp(overrides = {}) {
   const store = new RoomStore(overrides.store ?? {
     maxAgeMs: Number(env.ROOM_MAX_AGE_MS) || undefined,
     emptyTtlMs: Number(env.ROOM_EMPTY_TTL_MS) || undefined,
+    idleTtlMs: Number(env.ROOM_IDLE_TTL_MS) || undefined,
     maxParticipantsLimit: Number(env.MAX_PARTICIPANTS) || undefined,
   });
 

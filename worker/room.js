@@ -12,8 +12,10 @@ import { isRoomId, isMemberId, isOwnerToken, isPubKey, isMac, isRelayData, parse
 export const ROOM_DEFAULTS = Object.freeze({
   maxAgeMs: 24 * 60 * 60 * 1000,
   emptyTtlMs: 10 * 60 * 1000,
+  idleTtlMs: 60 * 60 * 1000,          // destruction si aucun message ne circule
   maxParticipantsLimit: 50,
 });
+const ACTIVITY_WRITE_INTERVAL_MS = 30 * 1000; // limite les écritures de `lastActivity`
 
 const MAX_PAYLOAD_BYTES = 1024 * 1024;
 const MAX_CT_LEN = Math.ceil(MAX_PAYLOAD_BYTES / 3) * 4;
@@ -74,15 +76,22 @@ export class Room extends DurableObject {
     return out;
   }
 
-  async #isExpired(meta, now = Date.now()) {
-    if (now >= meta.expiresAt) return true;
-    if (meta.emptySince != null && this.#members().length === 0 && now - meta.emptySince >= ROOM_DEFAULTS.emptyTtlMs) return true;
-    return false;
+  // null si la salle est vivante, sinon la raison de sa fin.
+  #expiryReason(meta, now = Date.now()) {
+    if (now >= meta.expiresAt) return 'expired';
+    if (meta.emptySince != null && this.#members().length === 0 && now - meta.emptySince >= ROOM_DEFAULTS.emptyTtlMs) return 'expired';
+    if (now - (meta.lastActivity ?? meta.createdAt) >= ROOM_DEFAULTS.idleTtlMs) return 'inactive';
+    return null;
   }
 
+  async #isExpired(meta, now = Date.now()) { return this.#expiryReason(meta, now) !== null; }
+
+  // L'alarme est le seul mécanisme qui garantit la fin d'une salle sans trafic :
+  // elle vise la plus proche des échéances (durée max, vacuité, inactivité).
   async #scheduleAlarm(meta) {
     let at = meta.expiresAt;
     if (meta.emptySince != null) at = Math.min(at, meta.emptySince + ROOM_DEFAULTS.emptyTtlMs);
+    at = Math.min(at, (meta.lastActivity ?? meta.createdAt) + ROOM_DEFAULTS.idleTtlMs);
     await this.ctx.storage.setAlarm(at);
   }
 
@@ -105,6 +114,7 @@ export class Room extends DurableObject {
         createdAt: now,
         expiresAt: now + ROOM_DEFAULTS.maxAgeMs,
         emptySince: now,
+        lastActivity: now,
         nextIndex: 1,
       };
       await this.#saveMeta(meta);
@@ -114,7 +124,8 @@ export class Room extends DurableObject {
 
     if (url.pathname === '/info') {
       const meta = await this.#meta();
-      if (!meta || (await this.#isExpired(meta))) { if (meta) await this.#destroy('expired'); return Response.json({ error: 'not_found' }, { status: 404 }); }
+      const reason = meta ? this.#expiryReason(meta) : null;
+      if (!meta || reason) { if (meta) await this.#destroy(reason); return Response.json({ error: 'not_found' }, { status: 404 }); }
       return Response.json({ roomId: meta.roomId, locked: meta.locked, participants: this.#members().length, maxParticipants: meta.maxParticipants, expiresAt: meta.expiresAt });
     }
 
@@ -162,7 +173,8 @@ export class Room extends DurableObject {
     if (msg.ownerToken !== undefined && !isOwnerToken(msg.ownerToken)) return fail('bad_join');
     const meta = await this.#meta();
     if (!meta || meta.roomId !== msg.roomId) return fail('not_found', CLOSE_NORMAL);
-    if (await this.#isExpired(meta)) { await this.#destroy('expired'); return fail('not_found', CLOSE_NORMAL); }
+    const expiry = this.#expiryReason(meta);
+    if (expiry) { await this.#destroy(expiry); return fail('not_found', CLOSE_NORMAL); }
     if (meta.locked) return fail('locked', CLOSE_NORMAL);
     const members = this.#members();
     if (members.length >= meta.maxParticipants) return fail('full', CLOSE_NORMAL);
@@ -190,9 +202,10 @@ export class Room extends DurableObject {
     for (const m of members) safeSend(m.ws, announce);
   }
 
-  #relay(ws, att, msg, fail) {
+  async #relay(ws, att, msg, fail) {
     if (!att.joined) return fail('not_joined');
     if (!isRelayData(msg.data, { maxCtLen: MAX_CT_LEN })) return fail('bad_relay');
+    await this.#touch();
     const out = { t: 'relay', from: att.memberId, data: msg.data };
     const members = this.#members();
     if (msg.to !== undefined) {
@@ -220,6 +233,22 @@ export class Room extends DurableObject {
     await this.#destroy('participant', att.index);
   }
 
+  // Horodatage d'activité, écrit au plus toutes les 30 s pour limiter les écritures.
+  async #touch() {
+    const now = Date.now();
+    if (this.lastTouch && now - this.lastTouch < ACTIVITY_WRITE_INTERVAL_MS) return;
+    const meta = await this.#meta();
+    if (!meta) return;
+    this.lastTouch = now;
+    meta.lastActivity = now;
+    await this.#saveMeta(meta);
+    await this.#scheduleAlarm(meta);
+  }
+
+  // Fin de la salle : notification, fermeture des WebSockets (et de leurs
+  // attachements), suppression de l'alarme et de tout le stockage de l'objet.
+  // Il ne subsiste alors rien de la conversation côté Cloudflare : un objet
+  // durable sans stockage ni alarme ni connexion n'a plus d'existence.
   async #destroy(reason, by = null) {
     for (const ws of this.ctx.getWebSockets()) {
       safeSend(ws, { t: 'destroyed', reason, by });
@@ -227,6 +256,8 @@ export class Room extends DurableObject {
     }
     await this.ctx.storage.deleteAlarm();
     await this.ctx.storage.deleteAll();
+    await this.ctx.storage.sync?.();
+    this.lastTouch = null;
   }
 
   // --- Départs et expiration -----------------------------------------------------------------
@@ -251,8 +282,9 @@ export class Room extends DurableObject {
 
   async alarm() {
     const meta = await this.#meta();
-    if (!meta) return;
-    if (await this.#isExpired(meta)) await this.#destroy('expired');
+    if (!meta) { await this.ctx.storage.deleteAll(); return; }
+    const reason = this.#expiryReason(meta);
+    if (reason) await this.#destroy(reason);
     else await this.#scheduleAlarm(meta);
   }
 }

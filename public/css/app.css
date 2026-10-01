@@ -128,6 +128,8 @@ input:read-only { color: var(--fg-muted); }
 .pill.quiet { cursor: default; }
 .pill.secure { border-color: var(--accent); }
 .pill.danger { border-color: var(--danger); }
+.pill .short { display: none; }
+.btn .ico, .pill .ico { line-height: 1; }
 
 .messages {
   flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 8px;
@@ -147,7 +149,7 @@ input:read-only { color: var(--fg-muted); }
   display: flex; gap: 8px; align-items: flex-end; padding: 10px 16px; border-top: 1px solid var(--line); background: var(--bg-elev);
   padding-bottom: calc(10px + env(safe-area-inset-bottom));
 }
-.composer textarea { flex: 1; resize: none; max-height: 160px; }
+.composer textarea { flex: 1; resize: none; min-height: 64px; max-height: 200px; font-size: 16px; }
 
 .dropzone {
   position: fixed; inset: 0; z-index: 30;
@@ -173,17 +175,24 @@ input:read-only { color: var(--fg-muted); }
 .toasts { position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%); z-index: 50; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
 .toast { background: var(--bg-elev); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; box-shadow: var(--shadow); font-size: .92rem; }
 
-/* Petits écrans */
+/* Petits écrans : en-tête réduit à l'essentiel (état du chiffrement + actions),
+   le reste de la hauteur va aux messages et à la saisie. */
 @media (max-width: 640px) {
   .card { padding: 22px 16px; }
   .hero .brand { font-size: 1.6rem; }
-  .chat-header { padding: 8px 10px; gap: 6px; }
-  .chat-title { width: 100%; }
-  .actions .btn.small { padding: 0 10px; }
-  .msg { max-width: 90%; }
-  .messages { padding: 10px; }
-  .composer { padding: 8px 10px; padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
+  .chat-header { padding: 6px 8px; padding-top: calc(6px + env(safe-area-inset-top)); gap: 6px; flex-wrap: nowrap; }
+  .chat-title, #pill-conn { display: none; }
+  .indicators { flex-wrap: nowrap; flex: 1; min-width: 0; }
+  .actions { flex-wrap: nowrap; }
+  .pill .long, .actions .btn .long { display: none; }
+  .pill .short { display: inline; }
+  .pill { padding: 0 10px; min-height: 40px; font-size: .85rem; }
+  .actions .btn.small { padding: 0; width: 40px; min-height: 40px; font-size: 1.1rem; }
+  #btn-security { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg { max-width: 92%; padding: 8px 12px; }
+  .messages { padding: 10px 8px; gap: 6px; }
+  .composer { padding: 8px; padding-bottom: calc(8px + env(safe-area-inset-bottom)); gap: 6px; }
+  .composer textarea { min-height: 72px; padding: 10px 12px; }
+  .composer .btn.primary { padding: 0 14px; }
+  .toasts { bottom: 120px; }
 }
-
-/* Focus programmatique des titres (accessibilité) sans anneau visible */
-h1[tabindex="-1"]:focus, h2[tabindex="-1"]:focus { outline: none; }

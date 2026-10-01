@@ -5,14 +5,21 @@
 import * as C from './crypto.js';
 import { Session, Status, MAX_FILE_BYTES } from './protocol.js';
 import { Transport, wireSession } from './transport.js';
-import { watchCaptureEvents } from './capture.js';
+import { watchCaptureEvents, CAPTURE_SUPPORT_NOTE } from './capture.js';
 import { $, el, toast, copyText, formatBytes, formatTime, safeFileName, IMAGE_TYPES } from './ui.js';
 
-const pseudonym = (index) => `Participant-${index}`;
+const pseudonym = (index, name = null) => (name ? `${name} (P${index})` : `Participant-${index}`);
+
+function setPill(id, ico, short, long) {
+  const el_ = $(id);
+  const set = (sel, v) => { const n = el_.querySelector(sel); if (n && v !== undefined) n.textContent = v; };
+  set('.ico', ico); set('.short', short); set('.long', long);
+}
 
 export class ChatView {
-  constructor({ roomId, root, ownerToken, inviteUrl, hasCode, passphraseMode, isCreator, onExit }) {
+  constructor({ roomId, root, ownerToken, inviteUrl, hasCode, passphraseMode, isCreator, onExit, name = null }) {
     this.roomId = roomId;
+    this.name = name;
     this.root = root;
     this.ownerToken = ownerToken || null;
     this.inviteUrl = inviteUrl;
@@ -42,6 +49,7 @@ export class ChatView {
     this.session = new Session({
       roomId: this.roomId,
       root: this.root.slice(),
+      name: this.name,
       send: () => {},
       on: {
         status: (s) => this.#onStatus(s),
@@ -59,12 +67,12 @@ export class ChatView {
       onError: (code) => this.#onServerError(code),
       onClose: (info) => this.#onClose(info),
     });
-    this.#setConn('⏳ Connexion…', 'quiet');
+    this.#setConn('⏳', 'Connexion…', 'quiet');
     const ann = await this.session.init();
     try {
       await this.transport.connect();
     } catch {
-      this.#setConn('🔴 Déconnecté', 'danger');
+      this.#setConn('🔴', 'Déconnecté', 'danger');
       this.#banner('Impossible de joindre le serveur.', 'danger', { retry: true });
       return;
     }
@@ -74,12 +82,14 @@ export class ChatView {
 
   #onWelcome(w) {
     this.owner = !!w.owner;
-    this.#setConn('🟢 Connecté', 'secure');
+    this.#setConn('🟢', 'Connecté', 'secure');
     this.#onLockState(w.locked, { silent: true });
     $('#btn-lock').hidden = !this.owner;
     $('#btn-destroy').hidden = false; // tout participant peut détruire le chat
-    this.pseudonym = pseudonym(w.index);
+    this.index = w.index;
+    this.pseudonym = pseudonym(w.index, this.session.name);
     this.#system(`Vous êtes ${this.pseudonym}. ${this.owner ? 'Vous êtes le propriétaire de ce chat.' : ''}`);
+    this.#system(CAPTURE_SUPPORT_NOTE);
     if (!this.stopCapture) {
       this.stopCapture = watchCaptureEvents(() => {
         // Notification envoyée (chiffrée) aux autres participants uniquement.
@@ -101,23 +111,23 @@ export class ChatView {
     pill.className = 'pill';
     switch (status) {
       case Status.SECURE:
-        pill.textContent = '🟢 Chiffré de bout en bout';
+        setPill('#btn-security', '🟢', 'Chiffré', 'Chiffré de bout en bout');
         pill.classList.add('secure');
         this.#banner('');
         break;
       case Status.WAITING_KEY:
-        pill.textContent = '🟡 En attente de la clé de session…';
+        setPill('#btn-security', '🟡', 'Clé…', 'En attente de la clé de session…');
         break;
       case Status.MISMATCH:
-        pill.textContent = '🔴 Secret non reconnu';
+        setPill('#btn-security', '🔴', 'Secret ?', 'Secret non reconnu');
         pill.classList.add('danger');
         this.#banner(`Aucun participant ne reconnaît votre ${this.passphraseMode ? 'clé personnelle' : 'lien'}${this.hasCode ? ' / code supplémentaire' : ' ou code supplémentaire'}. Vous êtes connecté au réseau mais vous ne recevrez aucune clé : la conversation reste indéchiffrable. Vérifiez le code et rejoignez à nouveau.`, 'danger');
         break;
       case Status.DESTROYED:
-        pill.textContent = '⚫ Session terminée';
+        setPill('#btn-security', '⚫', 'Terminé', 'Session terminée');
         break;
       default:
-        pill.textContent = '🟡 Établissement du chiffrement…';
+        setPill('#btn-security', '🟡', 'E2E…', 'Établissement du chiffrement…');
     }
   }
 
@@ -131,27 +141,29 @@ export class ChatView {
   #onMembers(list) {
     const n = list.length;
     const unverified = list.filter((m) => !m.verified).length;
-    const btn = $('#btn-participants');
-    btn.textContent = `🟢 ${n} participant${n > 1 ? 's' : ''} connecté${n > 1 ? 's' : ''}${unverified ? ` (${unverified} non vérifié${unverified > 1 ? 's' : ''})` : ''}`;
+    setPill('#btn-participants', unverified ? '⚠️' : '👥', String(n), `${n} participant${n > 1 ? 's' : ''} connecté${n > 1 ? 's' : ''}${unverified ? ` (${unverified} non vérifié${unverified > 1 ? 's' : ''})` : ''}`);
     const ul = $('#participants-list');
     ul.replaceChildren(...list.map((m) => el('li', {}, [
-      el('span', { text: pseudonym(m.index) }),
+      el('span', { text: pseudonym(m.index, m.name) }),
       m.self ? el('span', { class: 'tag', text: '(vous)' }) : null,
       el('span', { class: m.verified ? 'tag' : 'tag bad', text: m.verified ? '✓ vérifié' : '⚠ non vérifié — secret différent' }),
     ])));
     const previous = this.memberIds || new Set();
     const current = new Set(list.map((m) => m.memberId));
-    for (const m of list) if (!previous.has(m.memberId) && !m.self && previous.size) this.#system(`${pseudonym(m.index)} a rejoint le chat${m.verified ? '' : ' (non vérifié : secret différent)'}.`);
+    for (const m of list) if (!previous.has(m.memberId) && !m.self && previous.size) this.#system(`${pseudonym(m.index, m.name)} a rejoint le chat${m.verified ? '' : ' (non vérifié : secret différent)'}.`);
     for (const id of previous) if (!current.has(id)) this.#system(`${this.memberNames?.get(id) || 'Un participant'} a quitté le chat.`);
+    // Un pseudo annoncé après l'arrivée : on le signale une fois.
+    for (const m of list) if (!m.self && m.name && previous.has(m.memberId) && this.memberNames?.get(m.memberId) === `Participant-${m.index}`) this.#system(`Participant-${m.index} se présente : ${m.name}.`);
     this.memberIds = current;
-    this.memberNames = new Map(list.map((m) => [m.memberId, pseudonym(m.index)]));
+    this.memberNames = new Map(list.map((m) => [m.memberId, pseudonym(m.index, m.name)]));
+    this.byIndex = new Map(list.map((m) => [m.index, pseudonym(m.index, m.name)]));
   }
 
   // --- Messages ------------------------------------------------------------------------------
 
-  #onMessage({ index, kind, header, body }) {
-    if (kind === 'capture') return this.#system('⚠️ Un événement de capture d\'écran ou d\'enregistrement a été détecté chez un participant.', 'warn');
-    this.#render({ mine: false, name: pseudonym(index), header, body });
+  #onMessage({ index, name, kind, header, body }) {
+    if (kind === 'capture') return this.#system(`⚠️ Un événement de capture d'écran ou d'enregistrement a été détecté chez ${pseudonym(index, name)}.`, 'warn');
+    this.#render({ mine: false, name: pseudonym(index, name), header, body });
   }
 
   #render({ mine, name, header, body }) {
@@ -220,14 +232,16 @@ export class ChatView {
     this.locked = !!locked;
     $('#pill-lock').hidden = !this.locked;
     $('#btn-invite').hidden = this.locked;
-    $('#btn-lock').textContent = this.locked ? '🔓 Déverrouiller' : '🔒 Verrouiller le chat';
+    setPill('#btn-lock', this.locked ? '🔓' : '🔒', undefined, this.locked ? 'Déverrouiller' : 'Verrouiller');
+    $('#btn-lock').setAttribute('aria-label', this.locked ? 'Déverrouiller le chat' : 'Verrouiller le chat');
     if (!silent) this.#system(this.locked ? '🔒 Le chat est verrouillé : les nouvelles connexions sont bloquées.' : '🔓 Le chat est déverrouillé : de nouveaux participants peuvent rejoindre.');
   }
 
   #onDestroyed(reason, by) {
     if (this.ended) return;
-    if (reason === 'expired') return this.#end('expired');
-    this.#end(by != null ? `destroyed:${pseudonym(by)}` : 'destroyed');
+    if (reason === 'expired' || reason === 'inactive') return this.#end(reason);
+    const who = by != null ? (by === this.index ? 'vous' : (this.byIndex?.get(by) || `Participant-${by}`)) : null;
+    this.#end(who ? `destroyed:${who}` : 'destroyed');
   }
 
   #onServerError(code) {
@@ -248,7 +262,7 @@ export class ChatView {
   #onClose(info) {
     clearInterval(this.pingTimer);
     if (this.ended || info.byUs) return;
-    this.#setConn('🔴 Déconnecté', 'danger');
+    this.#setConn('🔴', 'Déconnecté', 'danger');
     this.#onStatus(Status.WAITING_KEY);
     this.#banner('Connexion perdue. Les messages ne peuvent plus être échangés.', 'danger', { retry: true });
   }
@@ -295,7 +309,7 @@ export class ChatView {
 
   #on(target, type, fn) { target.addEventListener(type, fn); this.listeners.push([target, type, fn]); }
 
-  #setConn(text, cls) { const p = $('#pill-conn'); p.textContent = text; p.className = `pill quiet ${cls}`; }
+  #setConn(ico, text, cls) { setPill('#pill-conn', ico, undefined, text); $('#pill-conn').className = `pill quiet ${cls}`; }
 
   #banner(text, kind = '', { retry = false } = {}) {
     const b = $('#chat-banner');
@@ -321,6 +335,8 @@ export class ChatView {
       ['Clé de session', info.epochId ? `époque ${info.epochId.split(':')[1]} (${info.epochsKept} conservée${info.epochsKept > 1 ? 's' : ''})` : 'non établie'],
       ['Meneur', info.isLeader ? 'vous (distribution des clés)' : (this.memberNames?.get(info.leaderId) || '—')],
       ['Participants vérifiés', `${info.verified} / ${info.total}`],
+      ['Votre pseudo', this.session?.name ? `${this.session.name} (transmis chiffré, inconnu du serveur)` : 'aucun'],
+      ['Captures d\'écran', CAPTURE_SUPPORT_NOTE],
       ['Code supplémentaire', this.hasCode ? 'utilisé (jamais transmis au serveur)' : 'non utilisé'],
       ['Serveur', 'relais de blobs chiffrés ; ne possède ni secret ni clé'],
     ] : [];

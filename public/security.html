@@ -56,6 +56,8 @@
     <ul>
       <li>Durée de vie maximale : 24 heures après la création.</li>
       <li>Une session vide (aucun participant connecté) est détruite après 10 minutes.</li>
+      <li>Une session sans aucun message pendant 60 minutes est détruite, même si des participants sont encore connectés.</li>
+      <li>Sur Cloudflare, la destruction ferme les connexions, supprime l'alarme et efface tout le stockage de l'objet de la salle : il ne subsiste rien.</li>
       <li>Le propriétaire peut verrouiller (bloquer les nouvelles connexions) et déverrouiller. <strong>N'importe quel participant connecté peut détruire la session</strong> à tout moment, par sécurité : la destruction notifie et déconnecte tous les participants, puis efface les structures en mémoire.</li>
       <li>L'arrêt du serveur détruit toutes les sessions.</li>
     </ul>
@@ -77,7 +79,7 @@
       <li>Les messages et fichiers en clair.</li>
       <li>Le secret de session, le code supplémentaire, la clé personnelle, la racine dérivée.</li>
       <li>Les clés privées ECDH, les clés d'enveloppe, les clés de groupe.</li>
-      <li>Les pseudonymes ne sont que des numéros d'ordre ; aucune donnée personnelle n'est demandée.</li>
+      <li>Les pseudos choisis par les participants : ils sont annoncés dans un message chiffré, aux seuls participants vérifiés. Le serveur ne voit que des numéros d'ordre.</li>
     </ul>
 
     <h2>7. Politique de journaux</h2>
@@ -110,7 +112,8 @@
     <p><strong>Un site web ne peut pas empêcher une capture d'écran</strong>, ni détecter une photo prise avec un autre appareil. secret.boi.lu ne prétend pas le faire.</p>
     <p>Ce qui est fait :</p>
     <ul>
-      <li>Les événements réellement exposés par le navigateur (touche Impr. écran, raccourcis macOS lorsqu'ils parviennent à la page) déclenchent une notification chiffrée, affichée aux <em>autres</em> participants : « ⚠️ Un événement de capture d'écran ou d'enregistrement a été détecté. » Aucune notification n'est émise sans événement observable, pour éviter les fausses alertes.</li>
+      <li>Les événements réellement exposés par le navigateur (touche Impr. écran, Win+Maj+S, raccourcis macOS lorsqu'ils parviennent à la page) déclenchent une notification chiffrée, affichée aux <em>autres</em> participants : « ⚠️ Un événement de capture d'écran ou d'enregistrement a été détecté. » Aucune notification n'est émise sans événement observable, pour éviter les fausses alertes.</li>
+      <li><strong>Sur mobile</strong> (combinaison de boutons, geste) et avec un autre appareil, aucune détection n'est possible : aucun navigateur n'expose ces événements. Un message dans le chat le rappelle à chaque participant.</li>
       <li>Aucun filigrane n'est affiché : un filigrane ne bloque rien et ne fait que décorer l'écran. L'identification d'une fuite repose sur le nombre réduit de participants et le verrouillage du salon.</li>
     </ul>
 

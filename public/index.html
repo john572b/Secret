@@ -35,6 +35,11 @@
         <h2>Créer un chat</h2>
         <form id="form-create" novalidate>
           <div class="field">
+            <label for="create-name">Votre pseudo <span class="muted">(optionnel, 24 caractères max)</span></label>
+            <input id="create-name" name="name" type="text" autocomplete="off" maxlength="24" placeholder="Participant-1">
+            <p class="hint">Transmis aux autres participants dans un message chiffré, jamais au serveur.</p>
+          </div>
+          <div class="field">
             <label for="create-max">Nombre maximal de participants</label>
             <input id="create-max" name="max" type="number" inputmode="numeric" min="2" max="50" value="2" required>
             <p class="hint">Entre 2 et 50. Vous pourrez verrouiller le chat à tout moment.</p>
@@ -95,6 +100,10 @@
             <input id="join-link" type="text" autocomplete="off" spellcheck="false" placeholder="https://secret.boi.lu/c/…">
           </div>
           <p id="join-session" class="hint" hidden></p>
+          <div class="field">
+            <label for="join-name">Votre pseudo <span class="muted">(optionnel, 24 caractères max)</span></label>
+            <input id="join-name" type="text" autocomplete="off" maxlength="24">
+          </div>
           <div class="field" id="join-field-pass">
             <label for="join-pass">Clé personnelle <span class="muted">(si le créateur en a défini une)</span></label>
             <input id="join-pass" type="password" autocomplete="off" minlength="8" maxlength="52">
@@ -121,16 +130,16 @@
           <span id="chat-session" class="muted mono"></span>
         </div>
         <div class="indicators">
-          <button type="button" id="btn-security" class="pill" aria-haspopup="dialog">🟡 Établissement du chiffrement…</button>
-          <button type="button" id="btn-participants" class="pill" aria-haspopup="dialog">🟢 1 participant connecté</button>
-          <span id="pill-conn" class="pill quiet">⏳ Connexion…</span>
-          <span id="pill-lock" class="pill quiet" hidden>🔒 Verrouillé</span>
+          <button type="button" id="btn-security" class="pill" aria-haspopup="dialog"><span class="ico" aria-hidden="true">🟡</span><span class="short">E2E…</span><span class="long">Établissement du chiffrement…</span></button>
+          <button type="button" id="btn-participants" class="pill" aria-haspopup="dialog" aria-label="Participants connectés"><span class="ico" aria-hidden="true">👥</span><span class="short">1</span><span class="long">1 participant connecté</span></button>
+          <span id="pill-conn" class="pill quiet"><span class="ico" aria-hidden="true">⏳</span><span class="long">Connexion…</span></span>
+          <span id="pill-lock" class="pill quiet" hidden><span class="ico" aria-hidden="true">🔒</span><span class="long">Verrouillé</span></span>
         </div>
         <div class="actions">
-          <button type="button" id="btn-invite" class="btn small">+ Rejoindre</button>
-          <button type="button" id="btn-lock" class="btn small" hidden>🔒 Verrouiller le chat</button>
-          <button type="button" id="btn-destroy" class="btn small danger">💥 Détruire le chat</button>
-          <button type="button" id="btn-leave" class="btn small">Quitter</button>
+          <button type="button" id="btn-invite" class="btn small" aria-label="Copier le lien d'invitation"><span class="ico" aria-hidden="true">🔗</span><span class="long">Inviter</span></button>
+          <button type="button" id="btn-lock" class="btn small" hidden aria-label="Verrouiller le chat"><span class="ico" aria-hidden="true">🔒</span><span class="long">Verrouiller</span></button>
+          <button type="button" id="btn-destroy" class="btn small danger" aria-label="Détruire le chat"><span class="ico" aria-hidden="true">💥</span><span class="long">Détruire</span></button>
+          <button type="button" id="btn-leave" class="btn small" aria-label="Quitter le chat"><span class="ico" aria-hidden="true">🚪</span><span class="long">Quitter</span></button>
         </div>
       </header>
 
@@ -140,7 +149,7 @@
 
       <form id="composer" class="composer">
         <label for="input-message" class="sr-only">Message</label>
-        <textarea id="input-message" rows="1" placeholder="Message chiffré de bout en bout…" autocomplete="off" disabled></textarea>
+        <textarea id="input-message" rows="2" placeholder="Message chiffré de bout en bout…" autocomplete="off" disabled></textarea>
         <input type="file" id="input-file" class="sr-only" multiple tabindex="-1">
         <button type="button" id="btn-file" class="btn icon" aria-label="Envoyer un fichier chiffré" disabled>📎</button>
         <button type="submit" id="btn-send" class="btn primary" disabled>Envoyer</button>

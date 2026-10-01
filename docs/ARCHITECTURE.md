@@ -99,7 +99,12 @@ l'homme du milieu). De plus la clé d'enveloppe (section 5) mélange `root` à l
 clé ECDH, ce qui rend inutile toute substitution même si le `mac` était ignoré.
 
 Les pseudonymes affichés (« Participant‑N ») dérivent de l'ordre d'arrivée
-attribué par le serveur. Aucune donnée personnelle n'est demandée.
+attribué par le serveur. Un participant peut choisir un **pseudo** (24
+caractères max) : il est annoncé aux autres dans un message chiffré de type
+`hello`, uniquement aux participants vérifiés, et n'est jamais connu du
+serveur. Il n'est pas authentifié autrement que par l'appartenance au groupe :
+l'ordre d'arrivée reste affiché à côté (« Alice (P2) »). Aucune donnée
+personnelle n'est demandée.
 
 ## 5. Clé de groupe par époque
 
@@ -143,7 +148,7 @@ implémentation native navigateur n'existe. Ce point est documenté comme
 
 ```text
 plaintext   = [longueur en‑tête (4 octets)] [en‑tête JSON UTF‑8] [corps binaire optionnel]
-en‑tête     = { kind: "text" | "file" | "capture", text?, name?, type?, size?, ts }
+en‑tête     = { kind: "text" | "file" | "capture" | "hello", text?, name?, type?, size?, ts }
 AAD         = roomId | émetteur | epochId | seq
 chiffré     = AES-256-GCM(K_e, IV aléatoire 96 bits, plaintext, AAD)
 relais      = { k: "msg", epochId, seq, iv, ct }     ← seul contenu vu par le serveur
@@ -174,7 +179,8 @@ Il est responsable de :
 - relayer des blobs opaques entre participants (diffusion ou ciblé) ;
 - diffuser les événements de présence (arrivée, départ, verrouillage) ;
 - détruire la session (à la demande de **n'importe quel participant connecté**,
-  à l'expiration, ou lorsque la salle reste vide). Le propriétaire conserve seul
+  à l'expiration, lorsque la salle reste vide, ou lorsqu'aucun message n'a
+  circulé depuis 60 minutes même si des participants sont encore connectés). Le propriétaire conserve seul
   le verrouillage ; la destruction est ouverte à tous par sécurité : toute
   personne présente peut mettre fin à la conversation immédiatement.
 
@@ -218,6 +224,14 @@ avec la version Node.js :
 - les participants (identifiant, ordre, clé publique, HMAC) sont attachés aux
   WebSockets eux‑mêmes et disparaissent avec eux ;
 - les messages ne sont jamais écrits : relayés puis oubliés ;
+- à la destruction (demande d'un participant, expiration, vacuité, inactivité),
+  l'objet durable ferme toutes les WebSockets (et leurs attachements), supprime
+  son alarme puis **tout son stockage** (`deleteAll`). Un objet durable sans
+  stockage, sans alarme et sans connexion n'a plus d'existence : il ne reste
+  rien de la conversation chez Cloudflare. L'alarme garantit cette fin même
+  sans aucun trafic ;
+- un horodatage d'activité (écrit au plus toutes les 30 s) sert à l'échéance
+  d'inactivité ;
 - la limitation de débit par IP utilise les bindings Rate Limiting de Cloudflare ;
 - les trames WebSocket sont limitées à 1 Mio, d'où le découpage des fichiers en
   morceaux chiffrés indépendamment (`FILE_CHUNK_BYTES`), chacun authentifié et
@@ -233,7 +247,7 @@ Session temporaire (mémoire)
    ↓  connexions WebSocket, annonces de clés publiques authentifiées
 Échange de données chiffrées
    ↓  clé de groupe par époque, rotation à chaque départ
-Destruction (tout participant, expiration 24 h, salle vide > 10 min)
+Destruction (tout participant, expiration 24 h, salle vide > 10 min, aucun message > 60 min)
    ↓  clients notifiés et déconnectés, structures effacées, clés client détruites
 Session inexistante
 ```
@@ -281,8 +295,10 @@ photos, enregistrements ou fichiers déjà téléchargés par des participants.
 
 1. **Captures d'écran** : un site web ne peut pas empêcher ni détecter de façon
    fiable une capture. Seuls les événements exposés par le navigateur (touche
-   Impr. écran, raccourcis macOS lorsqu'ils parviennent à la page) déclenchent
-   une notification aux autres participants. Une photo prise avec un autre
+   Impr. écran, Win+Maj+S, raccourcis macOS lorsqu'ils parviennent à la page)
+   déclenchent une notification aux autres participants. **Sur mobile**
+   (boutons physiques, gestes) et avec un autre appareil, aucune détection
+   n'existe : l'interface le dit explicitement à l'entrée dans le chat. Une photo prise avec un autre
    appareil est indétectable. Aucun filigrane n'est affiché (choix produit : il
    ne bloque rien et n'offre qu'une dissuasion symbolique).
 2. **Pas d'historique** : un participant qui arrive après un message ne le

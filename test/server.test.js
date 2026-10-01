@@ -79,6 +79,18 @@ test('expiration : salle vide détruite après le délai, salle expirée après 
   assert.equal(store.get(room.id), null);
 });
 
+test('inactivité : expiration sans trafic, remise à zéro à chaque relais', () => {
+  const store = new RoomStore({ maxAgeMs: 100_000, emptyTtlMs: 100_000, idleTtlMs: 1000 });
+  const { room } = store.create({ maxParticipants: 2 });
+  store.addMember(room, { memberId: 'm1' });
+  const now = Date.now();
+  assert.equal(store.expiryReason(room, now + 900), null);
+  assert.equal(store.expiryReason(room, now + 1001), 'inactive');
+  store.touch(room, now + 900);
+  assert.equal(store.expiryReason(room, now + 1500), null, 'le trafic repousse l\'échéance');
+  assert.equal(store.expiryReason(room, now + 1901), 'inactive');
+});
+
 test('expiration réelle : les clients connectés sont notifiés et la session disparaît', async () => {
   const short = await startApp({ store: { maxAgeMs: 400, emptyTtlMs: 10_000, maxParticipantsLimit: 10, sweepIntervalMs: 50 } });
   try {

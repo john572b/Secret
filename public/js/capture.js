@@ -5,9 +5,11 @@
 // réellement observable, pour ne jamais produire de fausse notification :
 //   - touche « Impr. écran » (Windows / Linux), reçue au keyup ;
 //   - raccourcis macOS ⌘⇧3 / ⌘⇧4 / ⌘⇧5 / ⌘⇧6 lorsque le système les laisse parvenir à la page ;
+//   - outil Capture d'écran de Windows (Win+Maj+S) lorsque la page reçoit la frappe ;
 //   - démarrage d'un partage/enregistrement d'écran initié *par cette page* (getDisplayMedia),
 //     ce que l'application ne fait jamais : s'il se produit, une extension ou un script l'a déclenché.
-// Les photos prises avec un autre appareil sont indétectables.
+// Les captures faites sur mobile (boutons physiques, gestes) et les photos prises
+// avec un autre appareil sont indétectables : aucun navigateur ne les expose.
 
 export function watchCaptureEvents(onDetected, { cooldownMs = 4000 } = {}) {
   let last = 0;
@@ -19,9 +21,11 @@ export function watchCaptureEvents(onDetected, { cooldownMs = 4000 } = {}) {
   };
 
   const onKeyUp = (e) => { if (e.key === 'PrintScreen') fire('printscreen'); };
+  const isMac = /Mac|iPhone|iPad/.test(navigator.platform || '') || /Mac OS/.test(navigator.userAgent || '');
   const onKeyDown = (e) => {
     if (e.key === 'PrintScreen') fire('printscreen');
-    else if (e.metaKey && e.shiftKey && ['3', '4', '5', '6'].includes(e.key)) fire('macos-shortcut');
+    else if (isMac && e.metaKey && e.shiftKey && ['3', '4', '5', '6'].includes(e.key)) fire('macos-shortcut');
+    else if (!isMac && e.metaKey && e.shiftKey && (e.key === 's' || e.key === 'S')) fire('windows-snip');
   };
   window.addEventListener('keyup', onKeyUp, true);
   window.addEventListener('keydown', onKeyDown, true);
@@ -47,5 +51,5 @@ export function watchCaptureEvents(onDetected, { cooldownMs = 4000 } = {}) {
 }
 
 export const CAPTURE_SUPPORT_NOTE =
-  'Les captures d\'écran ne peuvent pas être totalement empêchées ni toujours détectées par un site web. ' +
-  'Seuls les événements exposés par le navigateur (touche Impr. écran, raccourcis macOS) sont signalés aux autres participants.';
+  'Captures d\'écran : seules celles déclenchées au clavier et transmises au navigateur (Impr. écran, Win+Maj+S, ⌘⇧3/4/5) sont signalées aux autres participants. ' +
+  'Sur mobile ou avec un autre appareil, aucune détection n\'est possible.';

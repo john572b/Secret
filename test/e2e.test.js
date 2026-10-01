@@ -273,6 +273,43 @@ test('un message chiffré sous une époque reçu avant sa clé est mis en attent
   a.close(); b.close();
 });
 
+test('pseudos : annoncés chiffrés, visibles des autres, jamais en clair sur le câble', async () => {
+  const r = await newRoom();
+  const a = await makeClient({ wsUrl: env.wsUrl, ...r, name: 'A', nickname: 'Alice Dupont' });
+  await a.waitStatus(Status.SECURE);
+  const b = await makeClient({ wsUrl: env.wsUrl, roomId: r.roomId, secret: r.secret, name: 'B', nickname: '  Bob\u0000<script>  ' });
+  await b.waitStatus(Status.SECURE);
+  await waitFor(() => a.members.find((m) => !m.self)?.name === 'Bob<script>', 5000, 'A connaît le pseudo de B (nettoyé)');
+  await waitFor(() => b.members.find((m) => !m.self)?.name === 'Alice Dupont', 5000, 'B connaît le pseudo de A');
+  assert.equal(a.members.find((m) => m.self).name, 'Alice Dupont');
+  await a.session.sendText('salut');
+  await b.waitMessages(1);
+  assert.equal(b.messages[0].name, 'Alice Dupont');
+  const wire = [...a.wire.out, ...a.wire.in, ...b.wire.out, ...b.wire.in].join('\n');
+  assert.ok(!wire.includes('Alice') && !wire.includes('Bob'), 'les pseudos ne transitent jamais en clair');
+  // Un troisième arrivant apprend les pseudos existants.
+  const c = await makeClient({ wsUrl: env.wsUrl, roomId: r.roomId, secret: r.secret, name: 'C' });
+  await c.waitStatus(Status.SECURE);
+  await waitFor(() => c.members.filter((m) => m.name).length === 2, 5000, 'C reçoit les deux pseudos');
+  a.close(); b.close(); c.close();
+});
+
+test('inactivité : une salle sans message est détruite, clients prévenus', { skip: !!process.env.E2E_BASE }, async () => {
+  const idle = await startApp({ store: { maxAgeMs: 60_000, emptyTtlMs: 60_000, idleTtlMs: 700, maxParticipantsLimit: 10, sweepIntervalMs: 50 } });
+  try {
+    const { body } = await createRoom(idle.base, 3);
+    const secret = C.newRoomSecret();
+    const a = await makeClient({ wsUrl: idle.wsUrl, roomId: body.roomId, secret, name: 'A' });
+    const b = await makeClient({ wsUrl: idle.wsUrl, roomId: body.roomId, secret, name: 'B' });
+    await a.waitStatus(Status.SECURE); await b.waitStatus(Status.SECURE);
+    // Des messages réguliers maintiennent la salle en vie.
+    for (let i = 0; i < 4; i++) { await a.session.sendText('ping ' + i); await sleep(250); }
+    assert.ok(idle.app.store.get(body.roomId), 'salle vivante tant qu\'il y a du trafic');
+    await waitFor(() => a.destroyedReason === 'inactive' && b.destroyedReason === 'inactive', 3000, 'destruction pour inactivité');
+    assert.equal(idle.app.store.size, 0);
+  } finally { await idle.close(); }
+});
+
 test('événement de capture : transmis chiffré aux autres participants', async () => {
   const r = await newRoom();
   const a = await makeClient({ wsUrl: env.wsUrl, ...r, name: 'A' });

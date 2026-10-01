@@ -6,7 +6,8 @@ Messagerie privée et éphémère, chiffrée de bout en bout dans le navigateur.
 - Chiffrement de bout en bout (Web Crypto API : ECDH P‑256, HKDF, AES‑256‑GCM, HMAC, PBKDF2), aucune cryptographie maison.
 - Aucun stockage : sessions en mémoire, détruites à la demande, à l'expiration ou lorsqu'elles restent vides.
 - Code de chiffrement supplémentaire et clé personnelle optionnels, jamais transmis au serveur.
-- Verrouillage des nouvelles connexions, destruction immédiate par n'importe quel participant, rotation de clé à chaque départ.
+- Verrouillage des nouvelles connexions, destruction immédiate par n'importe quel participant, destruction automatique (expiration, vacuité, inactivité), rotation de clé à chaque départ.
+- Pseudos optionnels, transmis chiffrés aux seuls participants vérifiés.
 - Notification des événements de capture réellement détectables, sans fausse promesse.
 - Indicateur « 🟢 Chiffré de bout en bout » affiché uniquement lorsque la clé de groupe est établie.
 
@@ -59,6 +60,7 @@ Le serveur écoute en HTTP et se place derrière un terminateur TLS (Caddy, ngin
 | `TRUST_PROXY=1` | désactivé | lit `X-Forwarded-Proto` / `X-Forwarded-For` (uniquement derrière un proxy de confiance) |
 | `ROOM_MAX_AGE_MS` | 24 h | durée de vie maximale d'une session |
 | `ROOM_EMPTY_TTL_MS` | 10 min | destruction d'une session vide |
+| `ROOM_IDLE_TTL_MS` | 60 min | destruction d'une session sans aucun message |
 | `MAX_PARTICIPANTS` | 50 | plafond du nombre de participants |
 | `LOG_LEVEL` | `warn` | `silent`, `error`, `warn`, `info` — jamais de contenu, de clé ni d'identifiant |
 

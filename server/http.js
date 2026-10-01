@@ -128,6 +128,7 @@ export function createHttpHandler(ctx) {
           maxPayloadBytes: config.maxPayloadBytes,
           roomMaxAgeMs: store.opts.maxAgeMs,
           roomEmptyTtlMs: store.opts.emptyTtlMs,
+          roomIdleTtlMs: store.opts.idleTtlMs,
           rateLimitIdleMs: limiters.create.idleMs,
         },
       }, baseHeaders);

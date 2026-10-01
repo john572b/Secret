@@ -52,7 +52,7 @@ export async function deriveRoot({ roomId, secret, code = '', passphrase = null 
 }
 
 // Client complet. `wire` enregistre tout ce qui transite sur le câble (= ce que voit le serveur).
-export async function makeClient({ wsUrl, roomId, secret, code = '', passphrase = null, ownerToken, name = 'client' }) {
+export async function makeClient({ wsUrl, roomId, secret, code = '', passphrase = null, ownerToken, name = 'client', nickname = null }) {
   const root = await deriveRoot({ roomId, secret, code, passphrase });
   const state = {
     name,
@@ -71,6 +71,7 @@ export async function makeClient({ wsUrl, roomId, secret, code = '', passphrase 
   const session = new Session({
     roomId,
     root,
+    name: nickname,
     send: () => {},
     on: {
       status: (s) => state.statuses.push(s),
