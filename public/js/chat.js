@@ -41,9 +41,10 @@ export class ChatView {
   }
 
   async #connect() {
+    // Chaque session reçoit sa propre copie de la racine : Session.destroy() la remet à zéro.
     this.session = new Session({
       roomId: this.roomId,
-      root: this.root,
+      root: this.root.slice(),
       send: () => {},
       on: {
         status: (s) => this.#onStatus(s),
@@ -288,6 +289,7 @@ export class ChatView {
     try { sessionStorage.removeItem(`owner:${this.roomId}`); } catch { /* ignore */ }
     this.session?.destroy();
     this.session = null;
+    C.wipe(this.root);
     this.ownerToken = null;
     for (const [target, type, fn] of this.listeners) target.removeEventListener(type, fn);
     this.listeners = [];
