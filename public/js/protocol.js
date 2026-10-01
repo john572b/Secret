@@ -305,11 +305,19 @@ export class Session {
 
   async #sendKey(toId) {
     const m = this.members.get(toId);
-    const ep = this.epochs.get(this.currentEpochId);
+    const epochId = this.currentEpochId;
+    const ep = this.epochs.get(epochId);
     if (!m?.verified || !ep?.raw) return;
-    const wrapKey = await this.#wrapKeyFor(m);
-    const { iv, ct } = await C.encrypt(wrapKey, ep.raw, keyAad(this.roomId, this.memberId, toId, this.currentEpochId));
-    this.sendRelay(toId, { k: 'key', epochId: this.currentEpochId, iv, ct });
+    // Copie locale : une rotation concurrente peut effacer ep.raw pendant les attentes.
+    const raw = ep.raw.slice();
+    try {
+      const wrapKey = await this.#wrapKeyFor(m);
+      if (!this.members.has(toId) || this.status === Status.DESTROYED) return;
+      const { iv, ct } = await C.encrypt(wrapKey, raw, keyAad(this.roomId, this.memberId, toId, epochId));
+      this.sendRelay(toId, { k: 'key', epochId, iv, ct });
+    } finally {
+      C.wipe(raw);
+    }
   }
 
   async #wrapKeyFor(m) {
