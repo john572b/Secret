@@ -72,19 +72,7 @@ async function pbkdf2(secret, saltLabel) {
   return new Uint8Array(bits);
 }
 
-export const PASSPHRASE_MIN = 8;
-export const PASSPHRASE_MAX = 52;
-export function isValidPassphrase(p) {
-  return typeof p === 'string' && [...p].length >= PASSPHRASE_MIN && [...p].length <= PASSPHRASE_MAX;
-}
-
-// Mode « clé personnelle » : le secret de session est dérivé de la phrase.
-export async function secretFromPassphrase(passphrase, roomId) {
-  if (!isValidPassphrase(passphrase)) throw new RangeError('invalid_passphrase');
-  return pbkdf2(passphrase, `secret.boi.lu/v1/passphrase/${roomId}`);
-}
-
-// Code supplémentaire : devient le sel de la dérivation racine (32 zéros si absent).
+// Code de chiffrement : devient le sel de la dérivation racine (32 zéros si absent).
 export function saltFromCode(code, roomId) {
   if (!code) return Promise.resolve(new Uint8Array(32));
   return pbkdf2(code, `secret.boi.lu/v1/code/${roomId}`);

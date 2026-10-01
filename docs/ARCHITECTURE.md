@@ -27,7 +27,7 @@ puis chiffrement authentifié d'une clé de groupe par époque).
 | Usage | Primitive | Paramètres |
 |---|---|---|
 | Secret de session aléatoire | `crypto.getRandomValues` | 256 bits |
-| Dérivation depuis une phrase secrète / un code | PBKDF2‑HMAC‑SHA‑256 | 600 000 itérations, sel = identifiant de session + étiquette de domaine |
+| Dérivation depuis le code de chiffrement | PBKDF2‑HMAC‑SHA‑256 | 600 000 itérations, sel = identifiant de session + étiquette de domaine |
 | Dérivation de clés | HKDF‑SHA‑256 | étiquettes `secret.boi.lu/v1/…` distinctes par usage |
 | Authentification des clés publiques | HMAC‑SHA‑256 | clé dérivée du secret racine |
 | Échange de clés entre participants | ECDH P‑256 (clés éphémères) | une paire par participant et par connexion |
@@ -37,8 +37,8 @@ puis chiffrement authentifié d'une clé de groupe par époque).
 Pourquoi pas Argon2 ? Le navigateur n'expose pas nativement Argon2 ; l'intégrer
 exigerait une bibliothèque tierce (WASM), ce qui agrandit la surface de code
 cryptographique. PBKDF2 avec 600 000 itérations (recommandation OWASP 2023 pour
-SHA‑256) est la meilleure option native. Le code supplémentaire reste un
-*second facteur* : le secret principal de la session est, par défaut, 256 bits
+SHA‑256) est la meilleure option native. Le code de chiffrement reste un
+*second facteur* : le secret principal de la session est toujours 256 bits
 aléatoires, et non une phrase humaine.
 
 Pourquoi P‑256 et pas X25519 ? P‑256 est disponible dans tous les navigateurs
@@ -56,18 +56,18 @@ indépendant.
 
 ```text
 roomId      : 128 bits aléatoires, générés par le serveur (identifiant de session, non secret)
-S           : secret de session
-              - mode lien : 256 bits aléatoires, placés dans le fragment (#) du lien d'invitation
-              - mode clé personnelle : PBKDF2(clé personnelle, sel = "secret.boi.lu/v1/passphrase/" + roomId)
-Cw          : PBKDF2(code supplémentaire, sel = "secret.boi.lu/v1/code/" + roomId)   (32 octets nuls si aucun code)
+S           : secret de session, 256 bits aléatoires, placés dans le fragment (#) du lien d'invitation
+Cw          : PBKDF2(code de chiffrement, sel = "secret.boi.lu/v1/code/" + roomId)   (32 octets nuls si aucun code)
 root        : HKDF-SHA256(ikm = S, salt = Cw, info = "secret.boi.lu/v1/root")
 authKey     : HKDF-SHA256(ikm = root, info = "secret.boi.lu/v1/auth")         → clé HMAC
 ```
 
 - Le fragment d'URL (`#…`) n'est **jamais envoyé** par le navigateur au serveur.
-- La clé personnelle (8 à 52 caractères) et le code supplémentaire ne quittent
-  jamais le navigateur ; seuls des dérivés en sont utilisés localement.
-  Ils ne sont jamais stockés (ni `localStorage`, ni cookie).
+- Le code de chiffrement (unique secret humain, transmis par un autre canal que
+  le lien) ne quitte jamais le navigateur ; seul un dérivé en est utilisé
+  localement. Il n'est jamais stocké (ni `localStorage`, ni cookie). Il n'y a
+  volontairement qu'un seul code à communiquer, pour ne pas embrouiller les
+  participants.
 - Un participant qui possède le lien mais pas le bon code obtient un `root`
   différent, donc une `authKey` différente : ses clés publiques ne sont pas
   reconnues par les autres, il ne reçoit jamais la clé de groupe, et il ne peut
@@ -197,7 +197,7 @@ Il est responsable de :
 ### Données jamais accessibles au serveur
 
 - messages et fichiers en clair ;
-- secret de session `S`, code supplémentaire, clé personnelle, `root`, `authKey` ;
+- secret de session `S`, code de chiffrement, `root`, `authKey` ;
 - clés privées ECDH, clés d'enveloppe, clés d'époque ;
 - jeton propriétaire en clair (hors de la requête de vérification, en transit TLS).
 
@@ -289,7 +289,7 @@ photos, enregistrements ou fichiers déjà téléchargés par des participants.
 | Participant légitime malveillant | ❌ | il peut tout lire et tout copier : c'est inhérent à toute messagerie |
 | Capture d'écran / photo | ❌ | détection partielle au mieux, aucune dissuasion visuelle |
 | Navigateur / appareil compromis | ❌ | hors périmètre |
-| Force brute sur le code supplémentaire | ✅ partiel | PBKDF2 600 000 itérations ; limitation de débit ; mais un code court reste faible : le code est un second facteur, pas le secret principal |
+| Force brute sur le code de chiffrement | ✅ partiel | PBKDF2 600 000 itérations ; limitation de débit ; mais un code court reste faible : le code est un second facteur, pas le secret principal |
 
 ## 11. Limites assumées
 
@@ -305,7 +305,7 @@ photos, enregistrements ou fichiers déjà téléchargés par des participants.
    recevra jamais. C'est une conséquence voulue de l'absence de stockage.
 3. **Fragment d'URL** : le secret du lien reste dans l'historique du navigateur
    de chaque participant tant qu'il n'est pas effacé. Il est recommandé
-   d'utiliser un code supplémentaire, transmis par un autre canal.
+   d'utiliser un code de chiffrement, transmis par un autre canal.
 4. **Mémoire JavaScript** : l'effacement des clés est au mieux ; le ramasse‑miettes
    ne garantit rien.
 5. **Présence** : le serveur est cru sur « qui est connecté ». Il ne peut

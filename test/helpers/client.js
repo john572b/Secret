@@ -45,15 +45,14 @@ export async function createRoom(base, maxParticipants = 5, headers = {}) {
   return { status: res.status, body: await res.json().catch(() => null) };
 }
 
-export async function deriveRoot({ roomId, secret, code = '', passphrase = null }) {
-  const S = passphrase ? await C.secretFromPassphrase(passphrase, roomId) : secret;
+export async function deriveRoot({ roomId, secret, code = '' }) {
   const salt = await C.saltFromCode(code, roomId);
-  return C.deriveRoot(S, salt);
+  return C.deriveRoot(secret, salt);
 }
 
 // Client complet. `wire` enregistre tout ce qui transite sur le câble (= ce que voit le serveur).
-export async function makeClient({ wsUrl, roomId, secret, code = '', passphrase = null, ownerToken, name = 'client', nickname = null }) {
-  const root = await deriveRoot({ roomId, secret, code, passphrase });
+export async function makeClient({ wsUrl, roomId, secret, code = '', ownerToken, name = 'client', nickname = null }) {
+  const root = await deriveRoot({ roomId, secret, code });
   const state = {
     name,
     messages: [],

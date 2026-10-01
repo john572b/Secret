@@ -5,7 +5,7 @@ Messagerie privée et éphémère, chiffrée de bout en bout dans le navigateur.
 
 - Chiffrement de bout en bout (Web Crypto API : ECDH P‑256, HKDF, AES‑256‑GCM, HMAC, PBKDF2), aucune cryptographie maison.
 - Aucun stockage : sessions en mémoire, détruites à la demande, à l'expiration ou lorsqu'elles restent vides.
-- Code de chiffrement supplémentaire et clé personnelle optionnels, jamais transmis au serveur.
+- Un seul code de chiffrement optionnel, à transmettre par un autre canal, jamais transmis au serveur.
 - Verrouillage des nouvelles connexions, destruction immédiate par n'importe quel participant, destruction automatique (expiration, vacuité, inactivité), rotation de clé à chaque départ.
 - Pseudos optionnels, transmis chiffrés aux seuls participants vérifiés.
 - Notification des événements de capture réellement détectables, sans fausse promesse.

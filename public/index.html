@@ -45,14 +45,9 @@
             <p class="hint">Entre 2 et 50. Vous pourrez verrouiller le chat à tout moment.</p>
           </div>
           <div class="field">
-            <label for="create-code">Code de chiffrement supplémentaire <span class="muted">(optionnel)</span></label>
+            <label for="create-code">Code de chiffrement <span class="muted">(optionnel)</span></label>
             <input id="create-code" name="code" type="password" autocomplete="off" maxlength="128" placeholder="****************">
-            <p class="hint">À transmettre aux participants par un autre canal que le lien. Sans ce code, le lien ne permet pas de déchiffrer la conversation. Il ne quitte jamais votre navigateur.</p>
-          </div>
-          <div class="field">
-            <label for="create-pass">Clé personnelle / phrase secrète <span class="muted">(optionnel, 8 à 52 caractères)</span></label>
-            <input id="create-pass" name="pass" type="password" autocomplete="off" minlength="8" maxlength="52">
-            <p class="hint">Si vous en définissez une, le lien d'invitation ne contient aucun secret&nbsp;: les participants devront saisir cette clé pour rejoindre. La clé cryptographique en est dérivée localement (PBKDF2, 600&nbsp;000 itérations) et n'est jamais envoyée ni stockée.</p>
+            <p class="hint">À transmettre aux participants par un autre canal sécurisé que le lien (de vive voix, par exemple). Sans ce code, le lien seul ne permet pas de déchiffrer la conversation. Il ne quitte jamais votre navigateur.</p>
           </div>
           <p id="create-error" class="error" role="alert" hidden></p>
           <div class="row">
@@ -67,7 +62,7 @@
     <section id="view-invite" class="view centered" hidden>
       <main class="card">
         <h2>Chat créé</h2>
-        <p>Transmettez ces informations aux participants. Le serveur ne connaît ni le secret du lien, ni le code, ni la clé personnelle.</p>
+        <p>Transmettez ces informations aux participants. Le serveur ne connaît ni le secret du lien, ni le code de chiffrement.</p>
         <div class="field">
           <label for="invite-link">Lien d'invitation</label>
           <div class="row tight">
@@ -75,13 +70,6 @@
             <button type="button" id="btn-copy-link" class="btn">Copier</button>
           </div>
           <p class="hint" id="invite-link-hint"></p>
-        </div>
-        <div class="field">
-          <label for="invite-id">Identifiant du chat</label>
-          <div class="row tight">
-            <input id="invite-id" type="text" readonly>
-            <button type="button" id="btn-copy-id" class="btn">Copier</button>
-          </div>
         </div>
         <ul id="invite-notes" class="notes"></ul>
         <div class="row">
@@ -96,20 +84,17 @@
         <h2>Rejoindre un chat</h2>
         <form id="form-join" novalidate>
           <div class="field" id="join-field-link">
-            <label for="join-link">Lien d'invitation ou identifiant du chat</label>
-            <input id="join-link" type="text" autocomplete="off" spellcheck="false" placeholder="https://secret.boi.lu/c/…">
+            <label for="join-link">Lien d'invitation</label>
+            <input id="join-link" type="text" autocomplete="off" spellcheck="false" placeholder="https://secret.boi.lu/c/…#s=…">
+            <p class="hint">Collez le lien complet : il contient le secret de la session.</p>
           </div>
           <p id="join-session" class="hint" hidden></p>
           <div class="field">
             <label for="join-name">Votre pseudo <span class="muted">(optionnel, 24 caractères max)</span></label>
             <input id="join-name" type="text" autocomplete="off" maxlength="24">
           </div>
-          <div class="field" id="join-field-pass">
-            <label for="join-pass">Clé personnelle <span class="muted">(si le créateur en a défini une)</span></label>
-            <input id="join-pass" type="password" autocomplete="off" minlength="8" maxlength="52">
-          </div>
           <div class="field">
-            <label for="join-code">Code de chiffrement supplémentaire <span class="muted">(si fourni)</span></label>
+            <label for="join-code">Code de chiffrement <span class="muted">(si le créateur vous en a transmis un)</span></label>
             <input id="join-code" type="password" autocomplete="off" maxlength="128">
             <p class="hint">Laissez vide si le créateur n'en a pas défini. Un code erroné ne permet pas de déchiffrer la conversation.</p>
           </div>

@@ -17,14 +17,13 @@ function setPill(id, ico, short, long) {
 }
 
 export class ChatView {
-  constructor({ roomId, root, ownerToken, inviteUrl, hasCode, passphraseMode, isCreator, onExit, name = null }) {
+  constructor({ roomId, root, ownerToken, inviteUrl, hasCode, isCreator, onExit, name = null }) {
     this.roomId = roomId;
     this.name = name;
     this.root = root;
     this.ownerToken = ownerToken || null;
     this.inviteUrl = inviteUrl;
     this.hasCode = hasCode;
-    this.passphraseMode = passphraseMode;
     this.isCreator = isCreator;
     this.onExit = onExit;
     this.owner = false;
@@ -121,7 +120,7 @@ export class ChatView {
       case Status.MISMATCH:
         setPill('#btn-security', '🔴', 'Secret ?', 'Secret non reconnu');
         pill.classList.add('danger');
-        this.#banner(`Aucun participant ne reconnaît votre ${this.passphraseMode ? 'clé personnelle' : 'lien'}${this.hasCode ? ' / code supplémentaire' : ' ou code supplémentaire'}. Vous êtes connecté au réseau mais vous ne recevrez aucune clé : la conversation reste indéchiffrable. Vérifiez le code et rejoignez à nouveau.`, 'danger');
+        this.#banner('Aucun participant ne reconnaît votre lien ou votre code de chiffrement. Vous êtes connecté au réseau mais vous ne recevrez aucune clé : la conversation reste indéchiffrable. Vérifiez le code et rejoignez à nouveau.', 'danger');
         break;
       case Status.DESTROYED:
         setPill('#btn-security', '⚫', 'Terminé', 'Session terminée');
@@ -337,7 +336,7 @@ export class ChatView {
       ['Participants vérifiés', `${info.verified} / ${info.total}`],
       ['Votre pseudo', this.session?.name ? `${this.session.name} (transmis chiffré, inconnu du serveur)` : 'aucun'],
       ['Captures d\'écran', CAPTURE_SUPPORT_NOTE],
-      ['Code supplémentaire', this.hasCode ? 'utilisé (jamais transmis au serveur)' : 'non utilisé'],
+      ['Code de chiffrement', this.hasCode ? 'utilisé (jamais transmis au serveur)' : 'non utilisé'],
       ['Serveur', 'relais de blobs chiffrés ; ne possède ni secret ni clé'],
     ] : [];
     dl.replaceChildren(...rows.flatMap(([k, v]) => [el('dt', { text: k }), el('dd', { text: v })]));

@@ -43,7 +43,7 @@ test('deux participants établissent le chiffrement et échangent des messages q
   a.close(); b.close();
 });
 
-test('mauvais code supplémentaire : rejoint le réseau mais ne déchiffre rien et apparaît non vérifié', async () => {
+test('mauvais code de chiffrement : rejoint le réseau mais ne déchiffre rien et apparaît non vérifié', async () => {
   const r = await newRoom();
   const a = await makeClient({ wsUrl: env.wsUrl, ...r, code: 'bon-code', name: 'A' });
   await a.waitStatus(Status.SECURE);
@@ -66,21 +66,6 @@ test('mauvais code supplémentaire : rejoint le réseau mais ne déchiffre rien 
   assert.equal(textOf(b.messages[0]), 'pour B');
   assert.equal(evil.messages.length, 0);
   a.close(); b.close(); evil.close();
-});
-
-test('mauvaise clé personnelle : impossible de déchiffrer', async () => {
-  const r = await newRoom();
-  const a = await makeClient({ wsUrl: env.wsUrl, roomId: r.roomId, ownerToken: r.ownerToken, passphrase: 'phrase-correcte', name: 'A' });
-  await a.waitStatus(Status.SECURE);
-  const bad = await makeClient({ wsUrl: env.wsUrl, roomId: r.roomId, passphrase: 'phrase-erronee', name: 'Bad' });
-  await bad.waitStatus(Status.MISMATCH);
-  const good = await makeClient({ wsUrl: env.wsUrl, roomId: r.roomId, passphrase: 'phrase-correcte', name: 'Good' });
-  await good.waitStatus(Status.SECURE);
-  await a.session.sendText('hello');
-  await good.waitMessages(1);
-  await sleep(100);
-  assert.equal(bad.messages.length, 0);
-  a.close(); bad.close(); good.close();
 });
 
 test('fichier : chiffré de bout en bout, octets identiques à l\'arrivée, jamais en clair sur le câble', async () => {

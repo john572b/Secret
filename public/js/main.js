@@ -1,5 +1,5 @@
 // secret.boi.lu — point d'entrée de l'interface (accueil, création, invitation, rejoindre).
-// Les secrets (secret de session, code, clé personnelle) ne vivent qu'en mémoire
+// Les secrets (secret de session, code de chiffrement) ne vivent qu'en mémoire
 // et dans le fragment d'URL (#…), que le navigateur n'envoie jamais au serveur.
 
 import * as C from './crypto.js';
@@ -51,15 +51,13 @@ function secretFromHash(hash) {
 
 // --- Entrée dans le chat ---------------------------------------------------------------------
 
-async function enterChat({ roomId, secret, passphrase, code, ownerToken, isCreator, name = null }) {
+async function enterChat({ roomId, secret, code, ownerToken, isCreator, name = null }) {
   // Dérivations locales (PBKDF2 peut prendre ~1 s sur mobile).
-  const S = passphrase ? await C.secretFromPassphrase(passphrase, roomId) : secret;
   const codeSalt = await C.saltFromCode(code, roomId);
-  const root = await C.deriveRoot(S, codeSalt);
-  if (passphrase) C.wipe(S);
+  const root = await C.deriveRoot(secret, codeSalt);
   C.wipe(codeSalt);
 
-  const url = `/c/${roomId}${secret ? `#s=${C.toB64url(secret)}` : ''}`;
+  const url = `/c/${roomId}#s=${C.toB64url(secret)}`;
   go('view-chat', { url });
   chat?.dispose();
   chat = new ChatView({
@@ -68,7 +66,6 @@ async function enterChat({ roomId, secret, passphrase, code, ownerToken, isCreat
     ownerToken,
     inviteUrl: `${location.origin}${url}`,
     hasCode: !!code,
-    passphraseMode: !!passphrase,
     isCreator,
     name: sanitizeName(name),
     onExit: (reason) => {
@@ -95,11 +92,9 @@ $('#form-create').addEventListener('submit', async (e) => {
   setError(errNode, '');
   const max = Number($('#create-max').value);
   const code = $('#create-code').value;
-  const pass = $('#create-pass').value;
   const name = $('#create-name').value;
   if (!Number.isInteger(max) || max < 2 || max > 50) return setError(errNode, 'Le nombre de participants doit être compris entre 2 et 50.');
-  if (pass && !C.isValidPassphrase(pass)) return setError(errNode, 'La clé personnelle doit contenir entre 8 et 52 caractères.');
-  if (code && code.length < 4) return setError(errNode, 'Le code supplémentaire doit contenir au moins 4 caractères.');
+  if (code && code.length < 4) return setError(errNode, 'Le code de chiffrement doit contenir au moins 4 caractères.');
 
   const btn = $('#btn-create');
   btn.disabled = true;
@@ -112,11 +107,10 @@ $('#form-create').addEventListener('submit', async (e) => {
     if (res.status === 429) return setError(errNode, 'Trop de créations récentes. Réessayez dans une minute.');
     if (!res.ok) return setError(errNode, 'Le serveur a refusé la création du chat.');
     const { roomId, ownerToken } = await res.json();
-    const secret = pass ? null : C.newRoomSecret();
+    const secret = C.newRoomSecret();
     try { sessionStorage.setItem(`owner:${roomId}`, ownerToken); } catch { /* stockage indisponible */ }
-    showInvite({ roomId, secret, passphrase: pass || null, code: code || null, ownerToken, name });
+    showInvite({ roomId, secret, code: code || null, ownerToken, name });
     $('#create-code').value = '';
-    $('#create-pass').value = '';
   } catch {
     setError(errNode, 'Impossible de joindre le serveur.');
   } finally {
@@ -124,26 +118,22 @@ $('#form-create').addEventListener('submit', async (e) => {
   }
 });
 
-function showInvite({ roomId, secret, passphrase, code, ownerToken, name }) {
-  const link = `${location.origin}/c/${roomId}${secret ? `#s=${C.toB64url(secret)}` : ''}`;
+function showInvite({ roomId, secret, code, ownerToken, name }) {
+  const link = `${location.origin}/c/${roomId}#s=${C.toB64url(secret)}`;
   $('#invite-link').value = link;
-  $('#invite-id').value = roomId;
-  $('#invite-link-hint').textContent = secret
-    ? 'Le secret de chiffrement est dans la partie « #… » du lien : le navigateur ne l\'envoie jamais au serveur.'
-    : 'Ce lien ne contient aucun secret : les participants devront saisir la clé personnelle.';
+  $('#invite-link-hint').textContent = 'Le secret de chiffrement est dans la partie « #… » du lien : le navigateur ne l\'envoie jamais au serveur.';
   const notes = $('#invite-notes');
   notes.replaceChildren();
   const add = (t) => { const li = document.createElement('li'); li.textContent = t; notes.append(li); };
-  if (code) add('Code supplémentaire défini : transmettez-le par un autre canal que le lien (ex. de vive voix). Sans lui, le lien ne permet pas de déchiffrer.');
-  if (passphrase) add('Clé personnelle définie : elle n\'est pas dans le lien. Communiquez-la séparément aux participants.');
+  if (code) add('Code de chiffrement défini : transmettez-le par un autre canal sécurisé que le lien (de vive voix, par exemple). Sans lui, le lien ne permet pas de déchiffrer.');
+  else add('Aucun code de chiffrement : toute personne disposant du lien pourra lire la conversation. Partagez-le avec soin.');
   add('Les participants n\'auront accès qu\'aux messages échangés après leur arrivée : rien n\'est conservé sur le serveur.');
   add('Vous pourrez verrouiller le chat pour bloquer les nouvelles connexions, puis le détruire.');
 
   $('#btn-copy-link').onclick = async () => toast((await copyText(link)) ? 'Lien copié.' : 'Copie impossible : sélectionnez le lien manuellement.');
-  $('#btn-copy-id').onclick = async () => toast((await copyText(roomId)) ? 'Identifiant copié.' : 'Copie impossible.');
   $('#btn-enter').onclick = async () => {
     $('#btn-enter').disabled = true;
-    try { await enterChat({ roomId, secret, passphrase, code, ownerToken, isCreator: true, name }); }
+    try { await enterChat({ roomId, secret, code, ownerToken, isCreator: true, name }); }
     finally { $('#btn-enter').disabled = false; }
   };
   go('view-invite', { url: '/' });
@@ -157,10 +147,8 @@ function resetJoinForm() {
   pendingInvite = null;
   $('#join-field-link').hidden = false;
   $('#join-session').hidden = true;
-  $('#join-field-pass').hidden = false;
   $('#join-link').value = '';
   $('#join-name').value = '';
-  $('#join-pass').value = '';
   $('#join-code').value = '';
   setError($('#join-error'), '');
 }
@@ -170,9 +158,10 @@ function prepareJoinFromLink({ roomId, secret }) {
   pendingInvite = { roomId, secret };
   $('#join-field-link').hidden = true;
   const s = $('#join-session');
-  s.textContent = `Session ${roomId.slice(0, 6)}… — ${secret ? 'le lien contient le secret de chiffrement.' : 'ce lien ne contient pas de secret : saisissez la clé personnelle.'}`;
+  s.textContent = secret
+    ? `Session ${roomId.slice(0, 6)}… — le lien contient le secret de chiffrement.`
+    : `Session ${roomId.slice(0, 6)}… — ce lien est incomplet (il manque la partie « #s=… »). Demandez le lien complet au créateur.`;
   s.hidden = false;
-  $('#join-field-pass').hidden = !!secret;
   go('view-join');
 }
 
@@ -182,10 +171,8 @@ $('#form-join').addEventListener('submit', async (e) => {
   setError(errNode, '');
   const parsed = pendingInvite || parseInvite($('#join-link').value);
   if (!parsed) return setError(errNode, 'Lien ou identifiant invalide.');
-  const pass = $('#join-pass').value;
   const code = $('#join-code').value;
-  if (!parsed.secret && !pass) return setError(errNode, 'Il manque le secret : collez le lien d\'invitation complet, ou saisissez la clé personnelle.');
-  if (!parsed.secret && !C.isValidPassphrase(pass)) return setError(errNode, 'La clé personnelle doit contenir entre 8 et 52 caractères.');
+  if (!parsed.secret) return setError(errNode, 'Il manque le secret : collez le lien d\'invitation complet (avec la partie « #s=… »).');
 
   const btn = $('#btn-join');
   btn.disabled = true;
@@ -199,8 +186,7 @@ $('#form-join').addEventListener('submit', async (e) => {
     if (info.participants >= info.maxParticipants) return setError(errNode, 'Ce chat est complet.');
     let ownerToken = null;
     try { ownerToken = sessionStorage.getItem(`owner:${parsed.roomId}`); } catch { /* ignore */ }
-    await enterChat({ roomId: parsed.roomId, secret: parsed.secret ? parsed.secret : null, passphrase: parsed.secret ? null : pass, code: code || null, ownerToken, isCreator: false, name: $('#join-name').value });
-    $('#join-pass').value = '';
+    await enterChat({ roomId: parsed.roomId, secret: parsed.secret, code: code || null, ownerToken, isCreator: false, name: $('#join-name').value });
     $('#join-code').value = '';
   } catch {
     setError(errNode, 'Impossible de joindre le serveur.');

@@ -12,23 +12,14 @@ test('base64 et hex : aller-retour, y compris sur de grands tampons', () => {
   assert.equal(C.toHex(new Uint8Array([0, 255, 16])), '00ff10');
 });
 
-test('PBKDF2 : 600 000 itérations minimum, résultat déterministe, sels distincts', async () => {
+test('PBKDF2 : 600 000 itérations minimum, résultat déterministe, sel lié à la session', async () => {
   assert.ok(C.PBKDF2_ITERATIONS >= 600_000);
-  const a = await C.secretFromPassphrase('phrase-secrète', roomId);
-  const b = await C.secretFromPassphrase('phrase-secrète', roomId);
-  const c = await C.secretFromPassphrase('phrase-secrète', 'BBBBBBBBBBBBBBBBBBBBBB');
+  const a = await C.saltFromCode('code-secret', roomId);
+  const b = await C.saltFromCode('code-secret', roomId);
+  const c = await C.saltFromCode('code-secret', 'BBBBBBBBBBBBBBBBBBBBBB');
   assert.deepEqual(a, b);
   assert.notDeepEqual(a, c);
-  const code = await C.saltFromCode('phrase-secrète', roomId);
-  assert.notDeepEqual(code, a, 'les étiquettes de domaine séparent clé personnelle et code');
-});
-
-test('clé personnelle : longueur 8 à 52 caractères imposée', async () => {
-  assert.equal(C.isValidPassphrase('1234567'), false);
-  assert.equal(C.isValidPassphrase('12345678'), true);
-  assert.equal(C.isValidPassphrase('x'.repeat(52)), true);
-  assert.equal(C.isValidPassphrase('x'.repeat(53)), false);
-  await assert.rejects(() => C.secretFromPassphrase('court', roomId), RangeError);
+  assert.deepEqual(await C.saltFromCode('code-secret'.normalize('NFD'), roomId), a, 'normalisation Unicode');
 });
 
 test('racine : un code différent donne une racine différente, absence de code = sel nul', async () => {

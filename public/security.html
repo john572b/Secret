@@ -24,8 +24,8 @@
     <p>Aucune cryptographie « maison » : uniquement des primitives standard exposées par la <strong>Web Crypto API</strong> du navigateur.</p>
     <table>
       <tr><th>Usage</th><th>Primitive</th></tr>
-      <tr><td>Secret de session</td><td>256 bits aléatoires (ou dérivés d'une clé personnelle)</td></tr>
-      <tr><td>Clé personnelle, code supplémentaire</td><td>PBKDF2‑HMAC‑SHA‑256, 600 000 itérations, sel lié à la session</td></tr>
+      <tr><td>Secret de session</td><td>256 bits aléatoires, dans le fragment du lien</td></tr>
+      <tr><td>Code de chiffrement</td><td>PBKDF2‑HMAC‑SHA‑256, 600 000 itérations, sel lié à la session</td></tr>
       <tr><td>Dérivation de clés</td><td>HKDF‑SHA‑256 avec étiquettes distinctes par usage</td></tr>
       <tr><td>Authentification des participants</td><td>HMAC‑SHA‑256 des clés publiques, clé dérivée du secret partagé</td></tr>
       <tr><td>Échange de clés</td><td>ECDH P‑256, paires éphémères générées à chaque connexion</td></tr>
@@ -35,8 +35,8 @@
 
     <h3>Comment les clés circulent</h3>
     <ol>
-      <li>Le créateur obtient un identifiant de session aléatoire (128 bits) du serveur et génère localement un <strong>secret de session</strong> S. S est placé dans le fragment du lien d'invitation (<code>#s=…</code>), que le navigateur n'envoie jamais au serveur. En mode « clé personnelle », S est dérivé de la phrase par PBKDF2 et le lien ne contient aucun secret.</li>
-      <li>Le <strong>code supplémentaire</strong>, s'il existe, est dérivé par PBKDF2 et sert de sel à la dérivation de la racine : <code>root = HKDF(S, sel = KDF(code))</code>. Sans le bon code, la racine est différente.</li>
+      <li>Le créateur obtient un identifiant de session aléatoire (128 bits) du serveur et génère localement un <strong>secret de session</strong> S. S est placé dans le fragment du lien d'invitation (<code>#s=…</code>), que le navigateur n'envoie jamais au serveur.</li>
+      <li>Le <strong>code de chiffrement</strong>, s'il existe, est l'unique secret à transmettre par un autre canal que le lien. Il est dérivé par PBKDF2 et sert de sel à la dérivation de la racine : <code>root = HKDF(S, sel = KDF(code))</code>. Sans le bon code, la racine est différente.</li>
       <li>À chaque connexion, le navigateur génère une paire ECDH éphémère et annonce sa clé publique accompagnée d'un HMAC calculé avec une clé dérivée de <code>root</code>. Les autres participants vérifient ce HMAC : un participant avec un mauvais secret ou un mauvais code apparaît <em>non vérifié</em> et ne reçoit jamais de clé.</li>
       <li>Le participant vérifié le plus ancien (le <em>meneur</em>) génère une <strong>clé de groupe</strong> AES‑256 et l'envoie à chaque participant vérifié, chiffrée avec une clé d'enveloppe dérivée de ECDH et de <code>root</code>. Le serveur relaie ces enveloppes sans pouvoir les ouvrir.</li>
       <li>Chaque message est chiffré avec la clé de groupe, un numéro de séquence (anti‑rejeu) et des données associées liant salle, émetteur et époque.</li>
@@ -77,7 +77,7 @@
     <h2>6. Ce que le serveur ne voit jamais</h2>
     <ul>
       <li>Les messages et fichiers en clair.</li>
-      <li>Le secret de session, le code supplémentaire, la clé personnelle, la racine dérivée.</li>
+      <li>Le secret de session, le code de chiffrement, la racine dérivée.</li>
       <li>Les clés privées ECDH, les clés d'enveloppe, les clés de groupe.</li>
       <li>Les pseudos choisis par les participants : ils sont annoncés dans un message chiffré, aux seuls participants vérifiés. Le serveur ne voit que des numéros d'ordre.</li>
     </ul>
@@ -120,7 +120,7 @@
     <h2>11. Autres limites assumées</h2>
     <ul>
       <li>Pas d'historique : un participant arrivé après un message ne le verra jamais.</li>
-      <li>Le secret contenu dans le lien reste dans l'historique du navigateur de chaque participant. Utilisez un code supplémentaire transmis par un autre canal, et effacez l'historique si nécessaire.</li>
+      <li>Le secret contenu dans le lien reste dans l'historique du navigateur de chaque participant. Utilisez un code de chiffrement transmis par un autre canal, et effacez l'historique si nécessaire.</li>
       <li>L'effacement de la mémoire en JavaScript est « au mieux » ; le ramasse‑miettes ne garantit rien.</li>
       <li>La destruction ne peut pas effacer les captures, photos, enregistrements ou fichiers déjà téléchargés par des participants.</li>
       <li>Le protocole de groupe est une distribution de clé par canaux pairwise, pas MLS : la rotation a lieu aux départs et changements de meneur, pas à chaque message.</li>
