@@ -18,6 +18,12 @@ const MAX_PENDING = 64;             // messages en attente d'une clé d'époque
 const HEADER_LEN_BYTES = 4;
 
 export const MAX_FILE_BYTES = 8 * 1024 * 1024;
+// Les relais (dont Cloudflare) limitent une trame WebSocket à 1 Mio : les
+// fichiers sont découpés en morceaux chiffrés indépendamment, puis réassemblés.
+export const FILE_CHUNK_BYTES = 512 * 1024;
+export const MAX_RELAY_BYTES = 1024 * 1024;
+const MAX_ASSEMBLIES = 8;
+const ASSEMBLY_TTL_MS = 2 * 60 * 1000;
 
 const msgAad = (roomId, from, epochId, seq) => `secret.boi.lu/v1/msg|${roomId}|${from}|${epochId}|${seq}`;
 const keyAad = (roomId, from, to, epochId) => `secret.boi.lu/v1/key|${roomId}|${from}|${to}|${epochId}`;
@@ -63,6 +69,7 @@ export class Session {
     this.seq = 0;
     this.received = new Map();    // `${from}|${epochId}` -> dernier seq accepté
     this.pending = [];            // messages dont l'époque est encore inconnue
+    this.assemblies = new Map();  // `${from}|${fileId}` -> fichier en cours de réassemblage
     this.status = Status.INIT;
     this.locked = false;
   }
@@ -184,7 +191,42 @@ export class Session {
     try { decoded = decodePayload(bytes); } catch { return; }
     const { header, body } = decoded;
     if (!['text', 'file', 'capture'].includes(header.kind)) return;
+    if (header.kind === 'file') return this.#assemble(m, header, body, data.epochId);
     this.on.message?.({ from: m.memberId, index: m.index, kind: header.kind, header, body, epochId: data.epochId });
+  }
+
+  // Réassemblage des fichiers découpés. Chaque morceau est authentifié séparément ;
+  // la cohérence (taille, nombre de parties) est vérifiée avant émission.
+  #assemble(m, header, body, epochId) {
+    const { fileId, part, parts, size } = header;
+    const maxParts = Math.ceil(MAX_FILE_BYTES / FILE_CHUNK_BYTES);
+    if (typeof fileId !== 'string' || fileId.length > 32 || !Number.isInteger(parts) || parts < 1 || parts > maxParts) return;
+    if (!Number.isInteger(part) || part < 0 || part >= parts || !Number.isInteger(size) || size < 0 || size > MAX_FILE_BYTES) return;
+    if (!body && size > 0) return;
+    const chunk = body || new Uint8Array(0);
+    if (chunk.length > FILE_CHUNK_BYTES) return;
+    const now = Date.now();
+    for (const [k, a] of this.assemblies) if (now - a.startedAt > ASSEMBLY_TTL_MS) this.assemblies.delete(k);
+    const key = `${m.memberId}|${fileId}`;
+    let a = this.assemblies.get(key);
+    if (!a) {
+      if (this.assemblies.size >= MAX_ASSEMBLIES) return;
+      a = { header, chunks: new Array(parts), received: 0, total: 0, startedAt: now };
+      this.assemblies.set(key, a);
+    }
+    if (a.chunks[part] || a.header.parts !== parts || a.header.size !== size) return;
+    a.chunks[part] = chunk;
+    a.received++;
+    a.total += chunk.length;
+    if (a.total > size) { this.assemblies.delete(key); return; }
+    if (a.received < parts) return;
+    this.assemblies.delete(key);
+    if (a.total !== size) return;
+    const out = new Uint8Array(size);
+    let off = 0;
+    for (const c of a.chunks) { out.set(c, off); off += c.length; }
+    const { fileId: _id, part: _p, parts: _n, ...clean } = a.header;
+    this.on.message?.({ from: m.memberId, index: m.index, kind: 'file', header: clean, body: out, epochId });
   }
 
   async #flushPending(epochId) {
@@ -215,7 +257,14 @@ export class Session {
   async sendFile({ name, type }, bytes) {
     if (!(bytes instanceof Uint8Array)) throw new TypeError('bytes');
     if (bytes.length > MAX_FILE_BYTES) throw new RangeError('file_too_large');
-    return this.#sendPayload({ kind: 'file', name: String(name).slice(0, 255), type: String(type || '').slice(0, 100), size: bytes.length, ts: Date.now() }, bytes);
+    if (this.status !== Status.SECURE) throw new Error('not_secure');
+    const base = { kind: 'file', name: String(name).slice(0, 255), type: String(type || '').slice(0, 100), size: bytes.length, ts: Date.now() };
+    const fileId = C.toHex(C.randomBytes(8));
+    const parts = Math.max(1, Math.ceil(bytes.length / FILE_CHUNK_BYTES));
+    for (let part = 0; part < parts; part++) {
+      await this.#sendPayload({ ...base, fileId, part, parts }, bytes.subarray(part * FILE_CHUNK_BYTES, (part + 1) * FILE_CHUNK_BYTES));
+    }
+    return { header: base, body: bytes, parts };
   }
 
   async sendCaptureEvent() {
@@ -321,6 +370,7 @@ export class Session {
     this.members.clear();
     this.received.clear();
     this.pending.length = 0;
+    this.assemblies.clear();
     this.status = Status.DESTROYED;
     this.on.status?.(Status.DESTROYED);
   }

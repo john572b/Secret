@@ -23,7 +23,31 @@ npm test             # tests unitaires, bout en bout et sécurité (Node ≥ 22)
 
 Pour utiliser le chiffrement, le navigateur exige un contexte sécurisé : `http://localhost` convient en développement ; en production, HTTPS est obligatoire.
 
-## Déploiement
+## Déploiement sur Cloudflare (production : secret.boi.lu)
+
+Le site est hébergé sur Cloudflare Workers : le Worker (`worker/index.js`) sert
+l'interface et l'API, et chaque salle vit dans un Durable Object (`worker/room.js`)
+qui relaie les blobs chiffrés entre WebSockets. Le code client et la cryptographie
+sont identiques à la version Node.js ; seul le relais change.
+
+- État conservé par salle : métadonnées uniquement (haché du jeton propriétaire,
+  nombre maximal, verrouillage, horodatages), effacées à la destruction ou à
+  l'expiration (alarme). Les participants sont portés par les WebSockets
+  (attachements). Aucun message n'est jamais écrit.
+- Limites de débit par adresse IP via les bindings Rate Limiting (jamais journalisées).
+- Trames WebSocket limitées à 1 Mio : les fichiers sont découpés côté client en
+  morceaux chiffrés indépendamment puis réassemblés (voir `protocol.js`).
+
+```bash
+npm run dev:worker        # Worker local (workerd) sur http://127.0.0.1:8787
+npm run test:worker       # scénarios de bout en bout contre le Worker local
+CLOUDFLARE_API_TOKEN=… CLOUDFLARE_ACCOUNT_ID=… npm run deploy
+```
+
+Le jeton d'API doit avoir les droits Workers Scripts, Workers Routes et Zone (pour
+le domaine personnalisé). Ne le stockez jamais dans le dépôt.
+
+## Déploiement autonome (Node.js)
 
 Le serveur écoute en HTTP et se place derrière un terminateur TLS (Caddy, nginx, Traefik…).
 
@@ -56,7 +80,8 @@ Le serveur doit tourner en **une seule instance** (état en mémoire). Un redém
 ## Structure
 
 ```
-server/      relais : sessions en mémoire, API, WebSocket, limitation de débit, en-têtes
+server/      relais Node.js : sessions en mémoire, API, WebSocket, limitation de débit, en-têtes
+worker/      relais Cloudflare Workers + Durable Objects (même protocole, mêmes validations)
 public/js/   crypto.js (primitives), protocol.js (clés de groupe), transport.js, chat.js, main.js
 public/      index.html (application), security.html (documentation publique)
 docs/        ARCHITECTURE.md

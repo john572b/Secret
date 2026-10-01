@@ -174,8 +174,10 @@ export function attachWebSocket(httpServer, ctx) {
 
   return {
     wss,
-    close() {
+    async close() {
       clearInterval(heartbeat);
+      // Laisse partir les trames « destroyed » avant de couper les connexions restantes.
+      await new Promise((r) => setTimeout(r, 200));
       for (const ws of wss.clients) { try { ws.terminate(); } catch { /* ignore */ } }
       wss.close();
     },

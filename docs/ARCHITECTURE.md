@@ -201,6 +201,27 @@ Il est responsable de :
 - Les tests automatisés vérifient qu'aucun secret ni contenu de message
   n'apparaît sur la sortie standard du serveur.
 
+### Hébergement Cloudflare Workers
+
+En production, le relais est un Worker Cloudflare et chaque salle un Durable
+Object. L'hébergeur occupe exactement la position du serveur décrite ci‑dessus :
+il termine TLS et voit les mêmes blobs chiffrés, jamais le contenu. Différences
+avec la version Node.js :
+
+- les métadonnées de salle (haché du jeton propriétaire, nombre maximal,
+  verrouillage, horodatages, compteur d'ordre) sont écrites dans le stockage de
+  l'objet durable, car l'objet peut être évincé de la mémoire entre deux
+  messages (hibernation des WebSockets). Elles sont effacées (`deleteAll`) à la
+  destruction ou à l'expiration, déclenchée par une alarme ;
+- les participants (identifiant, ordre, clé publique, HMAC) sont attachés aux
+  WebSockets eux‑mêmes et disparaissent avec eux ;
+- les messages ne sont jamais écrits : relayés puis oubliés ;
+- la limitation de débit par IP utilise les bindings Rate Limiting de Cloudflare ;
+- les trames WebSocket sont limitées à 1 Mio, d'où le découpage des fichiers en
+  morceaux chiffrés indépendamment (`FILE_CHUNK_BYTES`), chacun authentifié et
+  numéroté ; un morceau manquant ou altéré empêche simplement l'émission du
+  fichier.
+
 ## 8. Cycle de vie
 
 ```text

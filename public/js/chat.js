@@ -54,7 +54,7 @@ export class ChatView {
       },
     });
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    this.transport = new Transport(`${proto}://${location.host}/ws`, {});
+    this.transport = new Transport(`${proto}://${location.host}/ws?room=${encodeURIComponent(this.roomId)}`, {});
     wireSession(this.transport, this.session, {
       onWelcome: (w) => this.#onWelcome(w),
       onState: (s) => this.#onLockState(s.locked),

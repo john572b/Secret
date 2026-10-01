@@ -4,13 +4,21 @@
   "private": true,
   "description": "Messagerie privée et éphémère, chiffrée de bout en bout dans le navigateur. Le serveur relaie, il ne lit pas.",
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node server/index.js",
     "dev": "LOG_LEVEL=info node server/index.js",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "dev:worker": "wrangler dev --env test --port 8787",
+    "test:worker": "E2E_BASE=http://127.0.0.1:8787 node --test --test-timeout=30000 test/e2e.test.js",
+    "deploy": "wrangler deploy"
   },
   "dependencies": {
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.145.0"
   }
 }

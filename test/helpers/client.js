@@ -7,7 +7,19 @@ import { Transport, wireSession } from '../../public/js/transport.js';
 
 export { C, Session, Status, Transport };
 
+// E2E_BASE=http://127.0.0.1:8787 : exécute les scénarios contre un serveur externe (Worker local).
+export const EXTERNAL_BASE = process.env.E2E_BASE || null;
+const openClients = new Set();
+
 export async function startApp(overrides = {}) {
+  if (EXTERNAL_BASE) {
+    const base = EXTERNAL_BASE.replace(/\/$/, '');
+    return {
+      app: null, base, wsUrl: base.replace(/^http/, 'ws') + '/ws', external: true,
+      // Sans serveur local à arrêter, on ferme les clients restés ouverts pour libérer la boucle d'événements.
+      close: async () => { for (const c of openClients) c.close(); openClients.clear(); },
+    };
+  }
   const app = createApp({
     requireHttps: false,
     store: { maxAgeMs: 60_000, emptyTtlMs: 60_000, maxParticipantsLimit: 10, sweepIntervalMs: 50 },
@@ -21,7 +33,7 @@ export async function startApp(overrides = {}) {
   });
   const addr = await app.listen(0, '127.0.0.1');
   const base = `http://127.0.0.1:${addr.port}`;
-  return { app, base, wsUrl: `ws://127.0.0.1:${addr.port}/ws`, close: () => app.close() };
+  return { app, base, wsUrl: `ws://127.0.0.1:${addr.port}/ws`, close: async () => { await app.close(); for (const c of openClients) c.close(); openClients.clear(); } };
 }
 
 export async function createRoom(base, maxParticipants = 5, headers = {}) {
@@ -66,7 +78,7 @@ export async function makeClient({ wsUrl, roomId, secret, code = '', passphrase 
       notice: (k, info) => state.notices.push({ k, info }),
     },
   });
-  const transport = new Transport(wsUrl, {});
+  const transport = new Transport(`${wsUrl}?room=${encodeURIComponent(roomId)}`, {});
   wireSession(transport, session, {
     onWelcome: (w) => { state.welcome = w; state.locked = w.locked; },
     onState: (s) => { state.locked = s.locked; },
@@ -95,8 +107,9 @@ export async function makeClient({ wsUrl, roomId, secret, code = '', passphrase 
     async waitMembers(n, timeout = 5000) {
       await waitFor(() => state.members.length === n, timeout, `${name}: ${n} membre(s) attendu(s), vu(s) ${state.members.length}`);
     },
-    close() { transport.close(); },
+    close() { openClients.delete(client); transport.close(); },
   };
+  openClients.add(client);
   // Les champs d'état sont lus à la demande (ils évoluent après la création).
   for (const k of Object.keys(state)) Object.defineProperty(client, k, { get: () => state[k], enumerable: true });
   return client;

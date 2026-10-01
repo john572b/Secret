@@ -70,6 +70,8 @@
       <tr><td>Adresse IP</td><td>limitation de débit</td><td>compteur en mémoire, purgé après 10 min d'inactivité, jamais journalisé</td></tr>
     </table>
 
+    <p>Le site est hébergé sur Cloudflare Workers. L'hébergeur occupe exactement la position du serveur : il termine TLS et voit les mêmes blobs chiffrés, jamais le contenu. Les métadonnées de salle (haché du jeton, verrouillage, horodatages) sont conservées dans l'objet durable de la salle le temps de sa vie, puis effacées ; les messages ne sont jamais écrits.</p>
+
     <h2>6. Ce que le serveur ne voit jamais</h2>
     <ul>
       <li>Les messages et fichiers en clair.</li>

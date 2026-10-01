@@ -19,7 +19,7 @@ export function createApp(overrides = {}) {
     requireHttps: overrides.requireHttps ?? (env.REQUIRE_HTTPS === '1' || (env.NODE_ENV === 'production' && env.REQUIRE_HTTPS !== '0')),
     trustProxy: overrides.trustProxy ?? env.TRUST_PROXY === '1',
     maxFileBytes: overrides.maxFileBytes ?? 8 * 1024 * 1024,
-    maxPayloadBytes: overrides.maxPayloadBytes ?? 12 * 1024 * 1024,
+    maxPayloadBytes: overrides.maxPayloadBytes ?? 1024 * 1024, // même plafond que les relais hébergés (1 Mio)
     heartbeatMs: overrides.heartbeatMs ?? 30 * 1000,
   };
 
@@ -58,12 +58,12 @@ export function createApp(overrides = {}) {
         });
       });
     },
-    close() {
+    async close() {
       clearInterval(sweeper);
       store.stop();
       store.destroyAll('shutdown');
-      wsLayer.close();
-      return new Promise((resolve) => server.close(() => resolve()));
+      await wsLayer.close();
+      await new Promise((resolve) => server.close(() => resolve()));
     },
   };
 }

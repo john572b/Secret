@@ -105,6 +105,34 @@ test('fichier : chiffré de bout en bout, octets identiques à l\'arrivée, jama
   a.close(); b.close();
 });
 
+test('fichier volumineux : découpé en trames < 1 Mio, réassemblé à l\'identique, morceau manquant = rien', async () => {
+  const r = await newRoom();
+  const a = await makeClient({ wsUrl: env.wsUrl, ...r, name: 'A' });
+  await a.waitStatus(Status.SECURE);
+  const b = await makeClient({ wsUrl: env.wsUrl, roomId: r.roomId, secret: r.secret, name: 'B' });
+  await b.waitStatus(Status.SECURE);
+  const bytes = C.randomBytes(1_300_000);
+  const sent = a.wire.out.length;
+  const { parts } = await a.session.sendFile({ name: 'gros.bin', type: 'application/octet-stream' }, bytes);
+  assert.equal(parts, 3);
+  const frames = a.wire.out.slice(sent);
+  assert.equal(frames.length, 3);
+  for (const f of frames) assert.ok(f.length < 1024 * 1024, `trame de ${f.length} octets`);
+  await b.waitMessages(1, 10000);
+  assert.equal(b.messages[0].kind, 'file');
+  assert.equal(b.messages[0].header.name, 'gros.bin');
+  assert.equal(b.messages[0].header.parts, undefined);
+  assert.deepEqual(b.messages[0].body, bytes);
+  // Un serveur malveillant qui supprime un morceau : le fichier n'est jamais émis.
+  const parsed = frames.map((f) => JSON.parse(f).data);
+  b.session.received.clear();
+  await b.session.handleRelay(a.session.memberId, { ...parsed[0], seq: 100 });
+  await b.session.handleRelay(a.session.memberId, { ...parsed[2], seq: 102 });
+  await sleep(100);
+  assert.equal(b.messages.length, 1);
+  a.close(); b.close();
+});
+
 test('départ d\'un participant : rotation de clé, l\'ancienne clé ne déchiffre pas la suite', async () => {
   const r = await newRoom();
   const a = await makeClient({ wsUrl: env.wsUrl, ...r, name: 'A' });
@@ -216,7 +244,7 @@ test('destruction : clients notifiés et déconnectés, session inexistante, cl�
   assert.equal(a.session.root, null);
   assert.equal(a.session.identity, null);
   assert.ok(a.root.every((x) => x === 0), 'racine remise à zéro');
-  assert.equal(env.app.store.get(r.roomId), null);
+  if (env.app) assert.equal(env.app.store.get(r.roomId), null);
   const res = await fetch(`${env.base}/api/rooms/${r.roomId}`);
   assert.equal(res.status, 404);
   const again = await makeClient({ wsUrl: env.wsUrl, roomId: r.roomId, secret: r.secret, name: 'late' });

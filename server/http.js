@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isRoomId } from './validate.js';
+import { buildSecurityHeaders, sanitizeHost, originAllowed } from './headers.js';
 
 const PUBLIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 
@@ -21,41 +22,8 @@ const MIME = {
 
 const MAX_BODY = 4096;
 
-function sanitizeHost(host) {
-  if (typeof host !== 'string' || host.length > 255) return null;
-  return /^[A-Za-z0-9.\-:[\]]+$/.test(host) ? host : null;
-}
-
 export function securityHeaders(req, { requireHttps }) {
-  const host = sanitizeHost(req.headers.host);
-  // 'self' couvre les WebSockets de même origine dans les navigateurs récents ;
-  // on ajoute l'hôte explicitement pour les moteurs plus anciens.
-  const wsSources = host ? ` wss://${host}${requireHttps ? '' : ` ws://${host}`}` : '';
-  const csp = [
-    "default-src 'none'",
-    "script-src 'self'",
-    "style-src 'self'",
-    "img-src 'self' blob:",
-    `connect-src 'self'${wsSources}`,
-    "font-src 'self'",
-    "manifest-src 'self'",
-    "base-uri 'none'",
-    "form-action 'self'",
-    "frame-ancestors 'none'",
-    "object-src 'none'",
-    ...(requireHttps ? ['upgrade-insecure-requests'] : []),
-  ].join('; ');
-  return {
-    'Content-Security-Policy': csp,
-    'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
-    'X-Content-Type-Options': 'nosniff',
-    'X-Frame-Options': 'DENY',
-    'Referrer-Policy': 'no-referrer',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
-    'Cross-Origin-Opener-Policy': 'same-origin',
-    'Cross-Origin-Resource-Policy': 'same-origin',
-    'X-Permitted-Cross-Domain-Policies': 'none',
-  };
+  return buildSecurityHeaders({ host: req.headers.host, requireHttps });
 }
 
 function isHttps(req, trustProxy) {
@@ -75,21 +43,8 @@ export function clientIp(req, trustProxy) {
   return req.socket.remoteAddress || 'unknown';
 }
 
-// Protection CSRF/CSWSH : sans cookies il n'y a pas d'ambient authority, mais on
-// refuse quand même les origines étrangères pour les requêtes d'écriture.
 export function isSameOrigin(req) {
-  const host = req.headers.host;
-  const origin = req.headers.origin;
-  if (typeof origin === 'string' && origin !== 'null') {
-    try {
-      return new URL(origin).host === host;
-    } catch {
-      return false;
-    }
-  }
-  const sfs = req.headers['sec-fetch-site'];
-  if (typeof sfs === 'string') return sfs === 'same-origin' || sfs === 'none';
-  return true; // clients non-navigateur : pas de risque CSRF
+  return originAllowed({ host: req.headers.host, origin: req.headers.origin, secFetchSite: req.headers['sec-fetch-site'] });
 }
 
 function send(res, status, headers, body) {

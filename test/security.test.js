@@ -57,7 +57,7 @@ test('CSRF : création refusée depuis une origine étrangère, acceptée depuis
 
 test('CSWSH : WebSocket refusé depuis une origine étrangère', async () => {
   const attempt = (headers) => new Promise((resolve) => {
-    const ws = new WebSocket(env.wsUrl, { headers });
+    const ws = new WebSocket(env.wsUrl + '?room=AAAAAAAAAAAAAAAAAAAAAA', { headers });
     ws.on('open', () => { ws.close(); resolve('open'); });
     ws.on('unexpected-response', (_, res) => resolve('http_' + res.statusCode));
     ws.on('error', () => resolve('error'));
@@ -109,7 +109,8 @@ test('injection : un contenu hostile transite et ressort intact (texte), sans to
   await a.session.sendText(hostile);
   await b.waitMessages(1);
   assert.equal(b.messages[0].header.text, hostile);
-  assert.ok(env.app.store.get(body.roomId), 'la session existe toujours');
+  if (env.app) assert.ok(env.app.store.get(body.roomId), 'la session existe toujours');
+  assert.equal((await fetch(`${env.base}/api/rooms/${body.roomId}`)).status, 200, 'la session existe toujours');
   a.close(); b.close();
 });
 
