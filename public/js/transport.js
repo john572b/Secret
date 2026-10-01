@@ -39,7 +39,7 @@ export class Transport {
       case 'left': return this.h.left?.(msg.memberId);
       case 'relay': return this.h.relay?.(msg.from, msg.data);
       case 'state': return this.h.state?.(msg);
-      case 'destroyed': return this.h.destroyed?.(msg.reason);
+      case 'destroyed': return this.h.destroyed?.(msg.reason, msg.by ?? null);
       case 'error': return this.h.error?.(msg.code);
       case 'pong': return;
       default: return;
@@ -80,7 +80,7 @@ export function wireSession(transport, session, extra = {}) {
   transport.h.left = (id) => session.memberLeft(id);
   transport.h.relay = (from, data) => session.handleRelay(from, data);
   transport.h.state = (s) => { session.setLocked(s.locked); extra.onState?.(s); };
-  transport.h.destroyed = (reason) => { extra.onDestroyed?.(reason); session.destroy(); };
+  transport.h.destroyed = (reason, by) => { extra.onDestroyed?.(reason, by); session.destroy(); };
   transport.h.error = (code) => extra.onError?.(code);
   transport.h.close = (info) => extra.onClose?.(info);
   session.sendRelay = (to, data) => transport.relay(to, data);

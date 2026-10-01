@@ -173,8 +173,10 @@ Il est responsable de :
 - accepter / refuser les connexions (session inexistante, pleine, verrouillée) ;
 - relayer des blobs opaques entre participants (diffusion ou ciblé) ;
 - diffuser les événements de présence (arrivée, départ, verrouillage) ;
-- détruire la session (sur ordre du propriétaire, à l'expiration, ou lorsque la
-  salle reste vide).
+- détruire la session (à la demande de **n'importe quel participant connecté**,
+  à l'expiration, ou lorsque la salle reste vide). Le propriétaire conserve seul
+  le verrouillage ; la destruction est ouverte à tous par sécurité : toute
+  personne présente peut mettre fin à la conversation immédiatement.
 
 ### Données visibles par le serveur (et durée)
 
@@ -231,7 +233,7 @@ Session temporaire (mémoire)
    ↓  connexions WebSocket, annonces de clés publiques authentifiées
 Échange de données chiffrées
    ↓  clé de groupe par époque, rotation à chaque départ
-Destruction (propriétaire, expiration 24 h, salle vide > 10 min)
+Destruction (tout participant, expiration 24 h, salle vide > 10 min)
    ↓  clients notifiés et déconnectés, structures effacées, clés client détruites
 Session inexistante
 ```

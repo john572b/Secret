@@ -140,7 +140,7 @@ test('journaux : aucun secret, message, identifiant ou IP sur la sortie du serve
     // Déclenche aussi des erreurs de protocole pour vérifier qu'elles ne journalisent rien de sensible.
     const bad = new WebSocket(wsUrl); await new Promise((r) => bad.on('open', r)); bad.send('garbage'); await new Promise((r) => bad.on('close', r));
     a.transport.destroy();
-    await waitFor(() => a.destroyedReason === 'owner', 2000);
+    await waitFor(() => a.destroyedReason === 'participant', 2000);
     child.kill('SIGTERM');
     await new Promise((r) => child.on('exit', r));
     for (const forbidden of [text, code, body.roomId, body.ownerToken, a.session.memberId, C.toB64(secret), C.toHex(secret), '127.0.0.1', a.session.pubKey]) {

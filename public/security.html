@@ -56,7 +56,7 @@
     <ul>
       <li>Durée de vie maximale : 24 heures après la création.</li>
       <li>Une session vide (aucun participant connecté) est détruite après 10 minutes.</li>
-      <li>Le propriétaire peut verrouiller (bloquer les nouvelles connexions), déverrouiller, et détruire la session à tout moment. La destruction notifie et déconnecte tous les participants, puis efface les structures en mémoire.</li>
+      <li>Le propriétaire peut verrouiller (bloquer les nouvelles connexions) et déverrouiller. <strong>N'importe quel participant connecté peut détruire la session</strong> à tout moment, par sécurité : la destruction notifie et déconnecte tous les participants, puis efface les structures en mémoire.</li>
       <li>L'arrêt du serveur détruit toutes les sessions.</li>
     </ul>
 
@@ -64,7 +64,7 @@
     <table>
       <tr><th>Donnée</th><th>Pourquoi</th><th>Durée</th></tr>
       <tr><td>Identifiant de session, état verrouillé, nombre maximal</td><td>fonctionnement</td><td>mémoire, jusqu'à destruction / expiration</td></tr>
-      <tr><td>Haché SHA‑256 du jeton de propriétaire</td><td>vérifier verrouillage / destruction</td><td>idem</td></tr>
+      <tr><td>Haché SHA‑256 du jeton de propriétaire</td><td>vérifier le verrouillage</td><td>idem</td></tr>
       <tr><td>Identifiant temporaire, ordre d'arrivée, clé publique ECDH et HMAC de chaque participant</td><td>relais et présence</td><td>durée de la connexion</td></tr>
       <tr><td>Blobs chiffrés (IV, texte chiffré, identifiant d'époque, numéro de séquence), leur taille et le moment de passage</td><td>relais</td><td>jamais conservés : transmis puis libérés</td></tr>
       <tr><td>Adresse IP</td><td>limitation de débit</td><td>compteur en mémoire, purgé après 10 min d'inactivité, jamais journalisé</td></tr>

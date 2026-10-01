@@ -100,12 +100,12 @@ export class RoomStore {
     return existed;
   }
 
-  destroy(id, reason = 'owner') {
+  destroy(id, reason = 'participant', by = null) {
     const room = this.rooms.get(id);
     if (!room) return false;
     this.rooms.delete(id);
     room.destroyed = true;
-    try { this.onDestroy?.(room, reason); } finally { wipeRoom(room); }
+    try { this.onDestroy?.(room, reason, by); } finally { wipeRoom(room); }
     return true;
   }
 

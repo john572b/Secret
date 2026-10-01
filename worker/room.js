@@ -151,7 +151,7 @@ export class Room extends DurableObject {
       case 'relay': return this.#relay(ws, att, msg, fail);
       case 'lock':
       case 'unlock': return this.#lock(ws, att, msg.t === 'lock', fail, refuse);
-      case 'destroy': return this.#destroyRequest(att, fail, refuse);
+      case 'destroy': return this.#destroyRequest(att, fail);
       default: return fail('unknown_type');
     }
   }
@@ -214,15 +214,15 @@ export class Room extends DurableObject {
     for (const m of this.#members()) safeSend(m.ws, { t: 'state', locked });
   }
 
-  async #destroyRequest(att, fail, refuse) {
+  // Tout participant connecté peut détruire la session (sécurité avant tout).
+  async #destroyRequest(att, fail) {
     if (!att.joined) return fail('not_joined');
-    if (!att.owner) return refuse('not_owner');
-    await this.#destroy('owner');
+    await this.#destroy('participant', att.index);
   }
 
-  async #destroy(reason) {
+  async #destroy(reason, by = null) {
     for (const ws of this.ctx.getWebSockets()) {
-      safeSend(ws, { t: 'destroyed', reason });
+      safeSend(ws, { t: 'destroyed', reason, by });
       try { ws.close(CLOSE_NORMAL, 'destroyed'); } catch { /* ignore */ }
     }
     await this.ctx.storage.deleteAlarm();

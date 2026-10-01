@@ -72,7 +72,10 @@ async function enterChat({ roomId, secret, passphrase, code, ownerToken, isCreat
     onExit: (reason) => {
       chat = null;
       go('view-home', { url: '/' });
-      if (reason === 'destroyed') showHomeBanner('💥 Ce chat a été détruit. Les clés et l\'historique local ont été effacés.', 'danger');
+      if (reason === 'destroyed' || reason?.startsWith('destroyed:')) {
+        const who = reason.includes(':') ? ` par ${reason.split(':')[1]}` : '';
+        showHomeBanner(`💥 Ce chat a été détruit${who}. Les clés et l'historique local ont été effacés.`, 'danger');
+      }
       else if (reason === 'expired') showHomeBanner('⏳ Cette session a expiré et a été détruite.', '');
       else if (reason === 'left') showHomeBanner('Vous avez quitté le chat. Les clés locales ont été effacées.', 'ok');
       else if (reason) showHomeBanner(reason, 'danger');

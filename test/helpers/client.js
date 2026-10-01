@@ -64,6 +64,7 @@ export async function makeClient({ wsUrl, roomId, secret, code = '', passphrase 
     welcome: null,
     locked: null,
     destroyedReason: null,
+    destroyedBy: null,
     error: null,
     closeInfo: null,
   };
@@ -82,7 +83,7 @@ export async function makeClient({ wsUrl, roomId, secret, code = '', passphrase 
   wireSession(transport, session, {
     onWelcome: (w) => { state.welcome = w; state.locked = w.locked; },
     onState: (s) => { state.locked = s.locked; },
-    onDestroyed: (r) => { state.destroyedReason = r; },
+    onDestroyed: (r, by) => { state.destroyedReason = r; state.destroyedBy = by; },
     onError: (c) => { state.error = c; },
     onClose: (i) => { state.closeInfo = i; },
   });

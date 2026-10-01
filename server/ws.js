@@ -32,9 +32,9 @@ export function attachWebSocket(httpServer, ctx) {
   }
 
   // Appelé par le magasin avant l'effacement d'une session.
-  store.onDestroy = (room, reason) => {
+  store.onDestroy = (room, reason, by = null) => {
     for (const m of room.members.values()) {
-      safeSend(m.ws, { t: 'destroyed', reason });
+      safeSend(m.ws, { t: 'destroyed', reason, by });
       m.ws.state = null;
       try { m.ws.close(CLOSE_NORMAL, 'destroyed'); } catch { /* déjà fermé */ }
     }
@@ -83,7 +83,7 @@ export function attachWebSocket(httpServer, ctx) {
         case 'unlock':
           return handleLock(ws, msg.t === 'lock', fail, refuse);
         case 'destroy':
-          return handleDestroy(ws, fail, refuse);
+          return handleDestroy(ws, fail);
         default:
           return fail('unknown_type');
       }
@@ -146,11 +146,12 @@ export function attachWebSocket(httpServer, ctx) {
     broadcast(st.room, { t: 'state', locked });
   }
 
-  function handleDestroy(ws, fail, refuse) {
+  // Tout participant connecté peut détruire la session (sécurité avant tout).
+  function handleDestroy(ws, fail) {
     const st = ws.state;
     if (!st) return fail('not_joined');
-    if (!st.owner) return refuse('not_owner');
-    store.destroy(st.room.id, 'owner');
+    const index = st.room.members.get(st.memberId)?.index ?? null;
+    store.destroy(st.room.id, 'participant', index);
   }
 
   function leave(ws) {

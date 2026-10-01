@@ -55,7 +55,7 @@ export class ChatView {
     wireSession(this.transport, this.session, {
       onWelcome: (w) => this.#onWelcome(w),
       onState: (s) => this.#onLockState(s.locked),
-      onDestroyed: (reason) => this.#onDestroyed(reason),
+      onDestroyed: (reason, by) => this.#onDestroyed(reason, by),
       onError: (code) => this.#onServerError(code),
       onClose: (info) => this.#onClose(info),
     });
@@ -77,7 +77,7 @@ export class ChatView {
     this.#setConn('🟢 Connecté', 'secure');
     this.#onLockState(w.locked, { silent: true });
     $('#btn-lock').hidden = !this.owner;
-    $('#btn-destroy').hidden = !this.owner;
+    $('#btn-destroy').hidden = false; // tout participant peut détruire le chat
     this.pseudonym = pseudonym(w.index);
     this.#system(`Vous êtes ${this.pseudonym}. ${this.owner ? 'Vous êtes le propriétaire de ce chat.' : ''}`);
     if (!this.stopCapture) {
@@ -224,9 +224,10 @@ export class ChatView {
     if (!silent) this.#system(this.locked ? '🔒 Le chat est verrouillé : les nouvelles connexions sont bloquées.' : '🔓 Le chat est déverrouillé : de nouveaux participants peuvent rejoindre.');
   }
 
-  #onDestroyed(reason) {
+  #onDestroyed(reason, by) {
     if (this.ended) return;
-    this.#end(reason === 'expired' ? 'expired' : 'destroyed');
+    if (reason === 'expired') return this.#end('expired');
+    this.#end(by != null ? `destroyed:${pseudonym(by)}` : 'destroyed');
   }
 
   #onServerError(code) {

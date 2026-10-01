@@ -227,17 +227,16 @@ test('verrouillage : refuse les nouveaux, garde les présents ; déverrouillage 
   a.close(); d.close();
 });
 
-test('destruction : clients notifiés et déconnectés, session inexistante, clés client effacées', async () => {
+test('destruction par n\'importe quel participant : clients notifiés et déconnectés, session inexistante, clés client effacées', async () => {
   const r = await newRoom();
   const a = await makeClient({ wsUrl: env.wsUrl, ...r, name: 'A' });
   await a.waitStatus(Status.SECURE);
   const b = await makeClient({ wsUrl: env.wsUrl, roomId: r.roomId, secret: r.secret, name: 'B' });
   await b.waitStatus(Status.SECURE);
+  assert.equal(b.welcome.owner, false);
+  // B n'est pas propriétaire : il peut quand même détruire le chat.
   b.transport.destroy();
-  await waitFor(() => b.error === 'not_owner', 2000);
-
-  a.transport.destroy();
-  await waitFor(() => a.destroyedReason === 'owner' && b.destroyedReason === 'owner', 2000, 'notification de destruction');
+  await waitFor(() => a.destroyedReason === 'participant' && b.destroyedReason === 'participant', 2000, 'notification de destruction');
   await waitFor(() => a.closeInfo && b.closeInfo, 2000, 'sockets fermées');
   assert.equal(a.session.status, Status.DESTROYED);
   assert.equal(a.session.epochs.size, 0);
