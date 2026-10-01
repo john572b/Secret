@@ -27,14 +27,15 @@ async function validJoin(roomId, extra = {}) {
 }
 
 test('création : identifiant aléatoire de 128 bits, jeton propriétaire jamais stocké en clair', async () => {
-  const { status, body } = await createRoom(env.base, 3);
+  const { status, body } = await createRoom(env.base);
+  assert.equal(body.maxParticipants, env.app.store.opts.maxParticipantsLimit, 'plafond technique, pas de choix utilisateur');
   assert.equal(status, 201);
   assert.match(body.roomId, /^[A-Za-z0-9_-]{22}$/);
   assert.match(body.ownerToken, /^[A-Za-z0-9_-]{43}$/);
   const room = env.app.store.get(body.roomId);
   assert.ok(room);
   assert.ok(!JSON.stringify({ ...room, members: [] }).includes(body.ownerToken));
-  const { body: b2 } = await createRoom(env.base, 3);
+  const { body: b2 } = await createRoom(env.base);
   assert.notEqual(body.roomId, b2.roomId);
   // Fixation de session : l'identifiant ne peut pas être choisi par le client.
   const res = await fetch(`${env.base}/api/rooms`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ maxParticipants: 3, roomId: 'AAAAAAAAAAAAAAAAAAAAAA' }) });
@@ -42,10 +43,11 @@ test('création : identifiant aléatoire de 128 bits, jeton propriétaire jamais
   assert.notEqual(b3.roomId, 'AAAAAAAAAAAAAAAAAAAAAA');
 });
 
-test('création : validation stricte du nombre de participants et du corps', async () => {
-  for (const bad of [1, 0, -1, 999, 'deux', null, 2.5]) {
-    const { status } = await createRoom(env.base, bad);
-    assert.equal(status, 400, `maxParticipants=${bad}`);
+test('création : le corps est ignoré sauf s\'il est mal formé ; plafond technique imposé', async () => {
+  for (const sent of [{ maxParticipants: 999 }, { maxParticipants: 1 }, { maxParticipants: 'deux' }, {}, '']) {
+    const { status, body } = await createRoom(env.base, sent);
+    assert.equal(status, 201, JSON.stringify(sent));
+    assert.equal(body.maxParticipants, env.app.store.opts.maxParticipantsLimit);
   }
   const r = await fetch(`${env.base}/api/rooms`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{not json' });
   assert.equal(r.status, 400);
@@ -94,7 +96,7 @@ test('inactivité : expiration sans trafic, remise à zéro à chaque relais', (
 test('expiration réelle : les clients connectés sont notifiés et la session disparaît', async () => {
   const short = await startApp({ store: { maxAgeMs: 400, emptyTtlMs: 10_000, maxParticipantsLimit: 10, sweepIntervalMs: 50 } });
   try {
-    const { body } = await createRoom(short.base, 3);
+    const { body } = await createRoom(short.base);
     const a = await makeClient({ wsUrl: short.wsUrl, roomId: body.roomId, secret: C.newRoomSecret(), name: 'A' });
     await a.waitStatus(Status.SECURE);
     await waitFor(() => a.destroyedReason === 'expired', 3000, 'expiration notifiée');
@@ -102,22 +104,24 @@ test('expiration réelle : les clients connectés sont notifiés et la session d
   } finally { await short.close(); }
 });
 
-test('participants : nombre maximal respecté, identifiants dupliqués refusés', async () => {
-  const { body } = await createRoom(env.base, 2);
-  const secret = C.newRoomSecret();
-  const a = await makeClient({ wsUrl: env.wsUrl, roomId: body.roomId, secret, name: 'A' });
-  const b = await makeClient({ wsUrl: env.wsUrl, roomId: body.roomId, secret, name: 'B' });
-  await a.waitStatus(Status.SECURE); await b.waitStatus(Status.SECURE);
-  const c = await makeClient({ wsUrl: env.wsUrl, roomId: body.roomId, secret, name: 'C' });
-  await waitFor(() => c.error === 'full', 2000);
-  const dup = await rawClient(env.wsUrl);
-  dup.send(await validJoin(body.roomId, { memberId: a.session.memberId }));
-  await waitFor(() => dup.got.some((m) => m.t === 'error' && (m.code === 'duplicate' || m.code === 'full')), 2000);
-  a.close(); b.close();
+test('participants : plafond technique respecté, identifiants dupliqués refusés', async () => {
+  const small = await startApp({ store: { maxAgeMs: 60_000, emptyTtlMs: 60_000, idleTtlMs: 60_000, maxParticipantsLimit: 2, sweepIntervalMs: 50 } });
+  try {
+    const { body } = await createRoom(small.base);
+    const secret = C.newRoomSecret();
+    const a = await makeClient({ wsUrl: small.wsUrl, roomId: body.roomId, secret, name: 'A' });
+    const b = await makeClient({ wsUrl: small.wsUrl, roomId: body.roomId, secret, name: 'B' });
+    await a.waitStatus(Status.SECURE); await b.waitStatus(Status.SECURE);
+    const c = await makeClient({ wsUrl: small.wsUrl, roomId: body.roomId, secret, name: 'C' });
+    await waitFor(() => c.error === 'full', 2000);
+    const dup = await rawClient(small.wsUrl);
+    dup.send(await validJoin(body.roomId, { memberId: a.session.memberId }));
+    await waitFor(() => dup.got.some((m) => m.t === 'error' && (m.code === 'duplicate' || m.code === 'full')), 2000);
+  } finally { await small.close(); }
 });
 
 test('messages WebSocket mal formés : connexion fermée avec code 1008', async () => {
-  const { body } = await createRoom(env.base, 3);
+  const { body } = await createRoom(env.base);
   const cases = [
     'pas du json',
     JSON.stringify([]),
@@ -140,7 +144,7 @@ test('messages WebSocket mal formés : connexion fermée avec code 1008', async 
 });
 
 test('relais : la forme des blobs est vérifiée mais pas leur contenu ; cible inexistante ignorée', async () => {
-  const { body } = await createRoom(env.base, 3);
+  const { body } = await createRoom(env.base);
   const c = await rawClient(env.wsUrl);
   c.send(await validJoin(body.roomId));
   await waitFor(() => c.got.some((m) => m.t === 'welcome'), 2000);
@@ -157,7 +161,7 @@ test('limitation de débit : création de sessions et connexions WebSocket', asy
   const limited = await startApp({ limits: { create: { capacity: 3, refillPerSec: 0 }, lookup: { capacity: 100, refillPerSec: 0 }, connect: { capacity: 2, refillPerSec: 0 } } });
   try {
     const statuses = [];
-    for (let i = 0; i < 5; i++) statuses.push((await createRoom(limited.base, 3)).status);
+    for (let i = 0; i < 5; i++) statuses.push((await createRoom(limited.base)).status);
     assert.deepEqual(statuses, [201, 201, 201, 429, 429]);
     await rawClient(limited.wsUrl); await rawClient(limited.wsUrl);
     await assert.rejects(() => rawClient(limited.wsUrl), /http_429/);
@@ -165,7 +169,7 @@ test('limitation de débit : création de sessions et connexions WebSocket', asy
 });
 
 test('limitation de débit par connexion : rafale de messages fermée', async () => {
-  const { body } = await createRoom(env.base, 3);
+  const { body } = await createRoom(env.base);
   const c = await rawClient(env.wsUrl);
   c.send(await validJoin(body.roomId));
   await waitFor(() => c.got.some((m) => m.t === 'welcome'), 2000);
@@ -192,7 +196,7 @@ test('force brute sur le code : le serveur ne vérifie aucun code (rien à force
 
 test('arrêt du serveur : toutes les sessions sont détruites et les clients prévenus', async () => {
   const tmp = await startApp();
-  const { body } = await createRoom(tmp.base, 3);
+  const { body } = await createRoom(tmp.base);
   const a = await makeClient({ wsUrl: tmp.wsUrl, roomId: body.roomId, secret: C.newRoomSecret(), name: 'A' });
   await a.waitStatus(Status.SECURE);
   await tmp.close();

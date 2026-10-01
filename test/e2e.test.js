@@ -7,8 +7,8 @@ let env;
 before(async () => { env = await startApp(); });
 after(async () => { await env.close(); });
 
-async function newRoom(max = 5) {
-  const { body } = await createRoom(env.base, max);
+async function newRoom() {
+  const { body } = await createRoom(env.base);
   return { roomId: body.roomId, ownerToken: body.ownerToken, secret: C.newRoomSecret() };
 }
 
@@ -282,7 +282,7 @@ test('pseudos : annoncés chiffrés, visibles des autres, jamais en clair sur le
 test('inactivité : une salle sans message est détruite, clients prévenus', { skip: !!process.env.E2E_BASE }, async () => {
   const idle = await startApp({ store: { maxAgeMs: 60_000, emptyTtlMs: 60_000, idleTtlMs: 700, maxParticipantsLimit: 10, sweepIntervalMs: 50 } });
   try {
-    const { body } = await createRoom(idle.base, 3);
+    const { body } = await createRoom(idle.base);
     const secret = C.newRoomSecret();
     const a = await makeClient({ wsUrl: idle.wsUrl, roomId: body.roomId, secret, name: 'A' });
     const b = await makeClient({ wsUrl: idle.wsUrl, roomId: body.roomId, secret, name: 'B' });

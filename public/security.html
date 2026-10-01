@@ -58,14 +58,14 @@
       <li>Une session vide (aucun participant connecté) est détruite après 10 minutes.</li>
       <li>Une session sans aucun message pendant 60 minutes est détruite, même si des participants sont encore connectés.</li>
       <li>Sur Cloudflare, la destruction ferme les connexions, supprime l'alarme et efface tout le stockage de l'objet de la salle : il ne subsiste rien.</li>
-      <li>Le propriétaire peut verrouiller (bloquer les nouvelles connexions) et déverrouiller. <strong>N'importe quel participant connecté peut détruire la session</strong> à tout moment, par sécurité : la destruction notifie et déconnecte tous les participants, puis efface les structures en mémoire.</li>
+      <li>Toute personne disposant du lien (et du code) peut rejoindre, sans nombre maximal choisi (seul un plafond technique de 50 participants protège contre les abus). Le propriétaire peut verrouiller (bloquer les nouvelles connexions) et déverrouiller. <strong>N'importe quel participant connecté peut détruire la session</strong> à tout moment, par sécurité : la destruction notifie et déconnecte tous les participants, puis efface les structures en mémoire.</li>
       <li>L'arrêt du serveur détruit toutes les sessions.</li>
     </ul>
 
     <h2>5. Ce que le serveur voit</h2>
     <table>
       <tr><th>Donnée</th><th>Pourquoi</th><th>Durée</th></tr>
-      <tr><td>Identifiant de session, état verrouillé, nombre maximal</td><td>fonctionnement</td><td>mémoire, jusqu'à destruction / expiration</td></tr>
+      <tr><td>Identifiant de session, état verrouillé</td><td>fonctionnement</td><td>mémoire, jusqu'à destruction / expiration</td></tr>
       <tr><td>Haché SHA‑256 du jeton de propriétaire</td><td>vérifier le verrouillage</td><td>idem</td></tr>
       <tr><td>Identifiant temporaire, ordre d'arrivée, clé publique ECDH et HMAC de chaque participant</td><td>relais et présence</td><td>durée de la connexion</td></tr>
       <tr><td>Blobs chiffrés (IV, texte chiffré, identifiant d'époque, numéro de séquence), leur taille et le moment de passage</td><td>relais</td><td>jamais conservés : transmis puis libérés</td></tr>

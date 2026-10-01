@@ -90,10 +90,8 @@ $('#form-create').addEventListener('submit', async (e) => {
   e.preventDefault();
   const errNode = $('#create-error');
   setError(errNode, '');
-  const max = Number($('#create-max').value);
   const code = $('#create-code').value;
   const name = $('#create-name').value;
-  if (!Number.isInteger(max) || max < 2 || max > 50) return setError(errNode, 'Le nombre de participants doit être compris entre 2 et 50.');
   if (code && code.length < 4) return setError(errNode, 'Le code de chiffrement doit contenir au moins 4 caractères.');
 
   const btn = $('#btn-create');
@@ -102,7 +100,7 @@ $('#form-create').addEventListener('submit', async (e) => {
     const res = await fetch('/api/rooms', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ maxParticipants: max }),
+      body: JSON.stringify({}),
     });
     if (res.status === 429) return setError(errNode, 'Trop de créations récentes. Réessayez dans une minute.');
     if (!res.ok) return setError(errNode, 'Le serveur a refusé la création du chat.');
@@ -128,7 +126,7 @@ function showInvite({ roomId, secret, code, ownerToken, name }) {
   if (code) add('Code de chiffrement défini : transmettez-le par un autre canal sécurisé que le lien (de vive voix, par exemple). Sans lui, le lien ne permet pas de déchiffrer.');
   else add('Aucun code de chiffrement : toute personne disposant du lien pourra lire la conversation. Partagez-le avec soin.');
   add('Les participants n\'auront accès qu\'aux messages échangés après leur arrivée : rien n\'est conservé sur le serveur.');
-  add('Vous pourrez verrouiller le chat pour bloquer les nouvelles connexions, puis le détruire.');
+  add('Toute personne disposant du lien (et du code) peut rejoindre, jusqu\'à ce que vous verrouilliez le chat. Tout participant peut le détruire.');
 
   $('#btn-copy-link').onclick = async () => toast((await copyText(link)) ? 'Lien copié.' : 'Copie impossible : sélectionnez le lien manuellement.');
   $('#btn-enter').onclick = async () => {
@@ -183,7 +181,7 @@ $('#form-join').addEventListener('submit', async (e) => {
     if (!res.ok) return setError(errNode, 'Le serveur est indisponible.');
     const info = await res.json();
     if (info.locked) return setError(errNode, '🔒 Ce chat est verrouillé : les nouvelles connexions sont bloquées.');
-    if (info.participants >= info.maxParticipants) return setError(errNode, 'Ce chat est complet.');
+    if (info.participants >= info.maxParticipants) return setError(errNode, 'Ce chat a atteint sa capacité technique.');
     let ownerToken = null;
     try { ownerToken = sessionStorage.getItem(`owner:${parsed.roomId}`); } catch { /* ignore */ }
     await enterChat({ roomId: parsed.roomId, secret: parsed.secret, code: code || null, ownerToken, isCreator: false, name: $('#join-name').value });

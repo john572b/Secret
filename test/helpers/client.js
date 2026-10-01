@@ -36,11 +36,11 @@ export async function startApp(overrides = {}) {
   return { app, base, wsUrl: `ws://127.0.0.1:${addr.port}/ws`, close: async () => { await app.close(); for (const c of openClients) c.close(); openClients.clear(); } };
 }
 
-export async function createRoom(base, maxParticipants = 5, headers = {}) {
+export async function createRoom(base, body = {}, headers = {}) {
   const res = await fetch(`${base}/api/rooms`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },
-    body: JSON.stringify({ maxParticipants }),
+    body: typeof body === 'string' ? body : JSON.stringify(body),
   });
   return { status: res.status, body: await res.json().catch(() => null) };
 }

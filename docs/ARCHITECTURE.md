@@ -175,7 +175,10 @@ Il est responsable de :
 
 - créer une session (`roomId` aléatoire 128 bits, jeton de propriétaire 256 bits
   dont seul le haché SHA‑256 est conservé) ;
-- accepter / refuser les connexions (session inexistante, pleine, verrouillée) ;
+- accepter / refuser les connexions (session inexistante, verrouillée, ou ayant
+  atteint le plafond technique de 50 participants, simple garde-fou : il n'y a
+  pas de nombre choisi par le créateur, toute personne ayant le lien peut
+  entrer jusqu'au verrouillage) ;
 - relayer des blobs opaques entre participants (diffusion ou ciblé) ;
 - diffuser les événements de présence (arrivée, départ, verrouillage) ;
 - détruire la session (à la demande de **n'importe quel participant connecté**,
@@ -188,7 +191,7 @@ Il est responsable de :
 
 | Donnée | Pourquoi | Durée |
 |---|---|---|
-| `roomId`, état verrouillé, nombre max | fonctionnement de la session | mémoire, jusqu'à destruction/expiration |
+| `roomId`, état verrouillé, plafond technique de participants | fonctionnement de la session | mémoire, jusqu'à destruction/expiration |
 | haché SHA‑256 du jeton propriétaire | vérifier lock/unlock/destroy | idem |
 | `memberId`, ordre d'arrivée, clé publique ECDH, `mac` | relais et présence | durée de la connexion |
 | blobs chiffrés (`iv`, `ct`, `epochId`, `seq`), tailles et horodatage implicite | relais | **jamais conservés** : transmis puis libérés |

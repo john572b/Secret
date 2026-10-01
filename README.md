@@ -61,7 +61,7 @@ Le serveur écoute en HTTP et se place derrière un terminateur TLS (Caddy, ngin
 | `ROOM_MAX_AGE_MS` | 24 h | durée de vie maximale d'une session |
 | `ROOM_EMPTY_TTL_MS` | 10 min | destruction d'une session vide |
 | `ROOM_IDLE_TTL_MS` | 60 min | destruction d'une session sans aucun message |
-| `MAX_PARTICIPANTS` | 50 | plafond du nombre de participants |
+| `MAX_PARTICIPANTS` | 50 | plafond technique du nombre de participants (aucun choix utilisateur) |
 | `LOG_LEVEL` | `warn` | `silent`, `error`, `warn`, `info` — jamais de contenu, de clé ni d'identifiant |
 
 Exemple avec Caddy :

@@ -102,10 +102,12 @@ export function createHttpHandler(ctx) {
       let raw;
       try { raw = await readBody(req, MAX_BODY); } catch (e) { return json(res, e.message === 'too_large' ? 413 : 400, { error: e.message === 'too_large' ? 'payload_too_large' : 'bad_request' }, baseHeaders); }
       let body;
-      try { body = JSON.parse(raw); } catch { return json(res, 400, { error: 'bad_request' }, baseHeaders); }
+      try { body = raw.trim() ? JSON.parse(raw) : {}; } catch { return json(res, 400, { error: 'bad_request' }, baseHeaders); }
       if (body === null || typeof body !== 'object') return json(res, 400, { error: 'bad_request' }, baseHeaders);
+      // Pas de nombre choisi par l'utilisateur : la salle accepte tout le monde jusqu'au
+      // verrouillage, dans la limite d'un plafond technique (protection contre les abus).
       let created;
-      try { created = store.create({ maxParticipants: body.maxParticipants }); } catch { return json(res, 400, { error: 'invalid_max_participants' }, baseHeaders); }
+      try { created = store.create({ maxParticipants: store.opts.maxParticipantsLimit }); } catch { return json(res, 500, { error: 'internal' }, baseHeaders); }
       const { room, ownerToken } = created;
       return json(res, 201, { roomId: room.id, ownerToken, maxParticipants: room.maxParticipants, expiresAt: room.expiresAt }, baseHeaders);
     }

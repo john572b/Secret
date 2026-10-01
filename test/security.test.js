@@ -45,13 +45,13 @@ test('HTTPS obligatoire : redirection 301 en mode production', async () => {
 });
 
 test('CSRF : création refusée depuis une origine étrangère, acceptée depuis la même origine', async () => {
-  const { status } = await createRoom(env.base, 3, { origin: 'https://attaquant.example' });
+  const { status } = await createRoom(env.base, {}, { origin: 'https://attaquant.example' });
   assert.equal(status, 403);
-  const { status: s2 } = await createRoom(env.base, 3, { 'sec-fetch-site': 'cross-site' });
+  const { status: s2 } = await createRoom(env.base, {}, { 'sec-fetch-site': 'cross-site' });
   assert.equal(s2, 403);
-  const { status: s3 } = await createRoom(env.base, 3, { origin: env.base });
+  const { status: s3 } = await createRoom(env.base, {}, { origin: env.base });
   assert.equal(s3, 201);
-  const { status: s4 } = await createRoom(env.base, 3, { 'sec-fetch-site': 'same-origin' });
+  const { status: s4 } = await createRoom(env.base, {}, { 'sec-fetch-site': 'same-origin' });
   assert.equal(s4, 201);
 });
 
@@ -99,7 +99,7 @@ test('XSS : le code client ne rend jamais de données via innerHTML/outerHTML/in
 });
 
 test('injection : un contenu hostile transite et ressort intact (texte), sans toucher le serveur', async () => {
-  const { body } = await createRoom(env.base, 3);
+  const { body } = await createRoom(env.base);
   const secret = C.newRoomSecret();
   const a = await makeClient({ wsUrl: env.wsUrl, roomId: body.roomId, secret, name: 'A' });
   await a.waitStatus(Status.SECURE);
@@ -127,7 +127,7 @@ test('journaux : aucun secret, message, identifiant ou IP sur la sortie du serve
     const port = Number(out.match(/port (\d+)/)[1]);
     const base = `http://127.0.0.1:${port}`;
     const wsUrl = `ws://127.0.0.1:${port}/ws`;
-    const { body } = await createRoom(base, 3);
+    const { body } = await createRoom(base);
     const secret = C.newRoomSecret();
     const code = 'code-ultra-secret';
     const a = await makeClient({ wsUrl, roomId: body.roomId, secret, code, ownerToken: body.ownerToken, name: 'A' });

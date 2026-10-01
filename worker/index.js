@@ -66,10 +66,10 @@ export default {
       const raw = await req.text();
       if (raw.length > MAX_BODY) return json(413, { error: 'payload_too_large' }, base);
       let body;
-      try { body = JSON.parse(raw); } catch { return json(400, { error: 'bad_request' }, base); }
+      try { body = raw.trim() ? JSON.parse(raw) : {}; } catch { return json(400, { error: 'bad_request' }, base); }
       if (body === null || typeof body !== 'object') return json(400, { error: 'bad_request' }, base);
-      const max = Number(body.maxParticipants);
-      if (!Number.isInteger(max) || max < 2 || max > ROOM_DEFAULTS.maxParticipantsLimit) return json(400, { error: 'invalid_max_participants' }, base);
+      // Pas de nombre choisi par l'utilisateur : plafond technique uniquement.
+      const max = ROOM_DEFAULTS.maxParticipantsLimit;
       const roomId = await newRoomId();
       const res = await roomStub(env, roomId).fetch('https://room/init', { method: 'POST', body: JSON.stringify({ roomId, maxParticipants: max }) });
       if (!res.ok) return json(500, { error: 'internal' }, base);
