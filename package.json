@@ -1,0 +1,16 @@
+{
+  "name": "secret-boi-lu",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Messagerie privée et éphémère, chiffrée de bout en bout dans le navigateur. Le serveur relaie, il ne lit pas.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "LOG_LEVEL=info node server/index.js",
+    "test": "node --test test/"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
