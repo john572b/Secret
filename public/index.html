@@ -26,6 +26,7 @@
         <div id="home-banner" class="banner" hidden></div>
         <p class="fineprint">Aucune conversation n'est stockée. Les sessions sont détruites à la demande ou automatiquement.
           <a href="/security">Comment ça marche&nbsp;?</a></p>
+        <p class="fineprint links"><a href="https://github.com/john572b/Secret" target="_blank" rel="noopener">Code source sur GitHub</a> · <a href="https://github.com/john572b/Secret/blob/main/LICENSE" target="_blank" rel="noopener">Licence MIT</a></p>
       </main>
     </section>
 
@@ -50,26 +51,6 @@
             <button type="submit" id="btn-create" class="btn primary">Créer le chat</button>
           </div>
         </form>
-      </main>
-    </section>
-
-    <!-- ===================== Invitation ===================== -->
-    <section id="view-invite" class="view centered" hidden>
-      <main class="card">
-        <h2>Chat créé</h2>
-        <p>Transmettez ces informations aux participants. Le serveur ne connaît ni le secret du lien, ni le code de chiffrement.</p>
-        <div class="field">
-          <label for="invite-link">Lien d'invitation</label>
-          <div class="row tight">
-            <input id="invite-link" type="text" readonly>
-            <button type="button" id="btn-copy-link" class="btn">Copier</button>
-          </div>
-          <p class="hint" id="invite-link-hint"></p>
-        </div>
-        <ul id="invite-notes" class="notes"></ul>
-        <div class="row">
-          <button type="button" id="btn-enter" class="btn primary big">Entrer dans le chat</button>
-        </div>
       </main>
     </section>
 
@@ -124,6 +105,18 @@
       </header>
 
       <div id="chat-banner" class="banner" role="status" hidden></div>
+
+      <section id="invite-card" class="invite-card" aria-labelledby="invite-title" hidden>
+        <div class="invite-head">
+          <h3 id="invite-title">Inviter des participants</h3>
+          <button type="button" id="btn-invite-close" class="btn small" aria-label="Masquer">✕</button>
+        </div>
+        <div class="row tight">
+          <input id="invite-link" type="text" readonly aria-label="Lien d'invitation">
+          <button type="button" id="btn-copy-link" class="btn primary">Copier</button>
+        </div>
+        <p id="invite-note" class="hint"></p>
+      </section>
 
       <main id="messages" class="messages" role="log" aria-live="polite" aria-relevant="additions" tabindex="0"></main>
 

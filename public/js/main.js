@@ -107,35 +107,15 @@ $('#form-create').addEventListener('submit', async (e) => {
     const { roomId, ownerToken } = await res.json();
     const secret = C.newRoomSecret();
     try { sessionStorage.setItem(`owner:${roomId}`, ownerToken); } catch { /* stockage indisponible */ }
-    showInvite({ roomId, secret, code: code || null, ownerToken, name });
     $('#create-code').value = '';
+    // Entrée immédiate dans le chat : le lien à partager y est affiché.
+    await enterChat({ roomId, secret, code: code || null, ownerToken, isCreator: true, name });
   } catch {
     setError(errNode, 'Impossible de joindre le serveur.');
   } finally {
     btn.disabled = false;
   }
 });
-
-function showInvite({ roomId, secret, code, ownerToken, name }) {
-  const link = `${location.origin}/c/${roomId}#s=${C.toB64url(secret)}`;
-  $('#invite-link').value = link;
-  $('#invite-link-hint').textContent = 'Le secret de chiffrement est dans la partie « #… » du lien : le navigateur ne l\'envoie jamais au serveur.';
-  const notes = $('#invite-notes');
-  notes.replaceChildren();
-  const add = (t) => { const li = document.createElement('li'); li.textContent = t; notes.append(li); };
-  if (code) add('Code de chiffrement défini : transmettez-le par un autre canal sécurisé que le lien (de vive voix, par exemple). Sans lui, le lien ne permet pas de déchiffrer.');
-  else add('Aucun code de chiffrement : toute personne disposant du lien pourra lire la conversation. Partagez-le avec soin.');
-  add('Les participants n\'auront accès qu\'aux messages échangés après leur arrivée : rien n\'est conservé sur le serveur.');
-  add('Toute personne disposant du lien (et du code) peut rejoindre, jusqu\'à ce que vous verrouilliez le chat. Tout participant peut le détruire.');
-
-  $('#btn-copy-link').onclick = async () => toast((await copyText(link)) ? 'Lien copié.' : 'Copie impossible : sélectionnez le lien manuellement.');
-  $('#btn-enter').onclick = async () => {
-    $('#btn-enter').disabled = true;
-    try { await enterChat({ roomId, secret, code, ownerToken, isCreator: true, name }); }
-    finally { $('#btn-enter').disabled = false; }
-  };
-  go('view-invite', { url: '/' });
-}
 
 // --- Rejoindre -------------------------------------------------------------------------------
 

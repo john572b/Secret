@@ -108,6 +108,15 @@ input:read-only { color: var(--fg-muted); }
   border-radius: 10px; padding: 10px 14px; margin: 12px 16px 0; font-size: .95rem;
 }
 .banner.danger { border-color: var(--danger); }
+.fineprint.links { margin-top: .5rem; }
+.fineprint.links a { color: var(--fg-muted); }
+
+/* Carte d'invitation affichée dans le chat */
+.invite-card { margin: 12px 16px 0; padding: 12px 14px; background: var(--bg-elev); border: 1px solid var(--accent); border-radius: 12px; }
+.invite-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.invite-head h3 { margin: 0; font-size: 1rem; }
+.invite-card .btn.small { min-height: 36px; }
+@media (max-width: 640px) { .invite-card { margin: 8px 8px 0; padding: 10px; } }
 .banner.ok { border-color: var(--accent); }
 
 /* Chat */

@@ -4,6 +4,8 @@
   "private": true,
   "description": "Messagerie privée et éphémère, chiffrée de bout en bout dans le navigateur. Le serveur relaie, il ne lit pas.",
   "type": "module",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/john572b/Secret" },
   "engines": {
     "node": ">=22"
   },

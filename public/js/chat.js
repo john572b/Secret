@@ -40,6 +40,11 @@ export class ChatView {
     this.#bindUi();
     $('#messages').replaceChildren();
     $('#chat-session').textContent = `· ${this.roomId.slice(0, 6)}…`;
+    $('#invite-link').value = this.inviteUrl;
+    $('#invite-note').textContent = this.hasCode
+      ? 'Code de chiffrement défini : transmettez-le par un autre canal sécurisé que le lien (de vive voix, par exemple). Sans lui, le lien ne permet pas de déchiffrer.'
+      : 'Aucun code de chiffrement : toute personne disposant de ce lien pourra lire la conversation. Partagez-le avec soin.';
+    $('#invite-card').hidden = !this.isCreator;
     await this.#connect();
   }
 
@@ -294,6 +299,8 @@ export class ChatView {
     $('#participants-list').replaceChildren();
     $('#security-info').replaceChildren();
     $('#input-message').value = '';
+    $('#invite-link').value = '';
+    $('#invite-card').hidden = true;
     try { sessionStorage.removeItem(`owner:${this.roomId}`); } catch { /* ignore */ }
     this.session?.destroy();
     this.session = null;
@@ -362,10 +369,13 @@ export class ChatView {
     this.#on($('#btn-security'), 'click', () => this.#showSecurity());
     for (const b of document.querySelectorAll('.panel [data-close]')) this.#on(b, 'click', (e) => e.target.closest('dialog').close());
 
-    this.#on($('#btn-invite'), 'click', async () => {
+    const copyInvite = async () => {
       const ok = await copyText(this.inviteUrl);
-      toast(ok ? `Lien d'invitation copié.${this.hasCode ? ' N\'oubliez pas de transmettre le code séparément.' : ''}` : 'Copie impossible.');
-    });
+      toast(ok ? `Lien d'invitation copié.${this.hasCode ? ' N\'oubliez pas de transmettre le code séparément.' : ''}` : 'Copie impossible : sélectionnez le lien manuellement.');
+    };
+    this.#on($('#btn-invite'), 'click', () => { $('#invite-card').hidden = false; copyInvite(); });
+    this.#on($('#btn-copy-link'), 'click', copyInvite);
+    this.#on($('#btn-invite-close'), 'click', () => { $('#invite-card').hidden = true; });
     this.#on($('#btn-lock'), 'click', () => { if (this.locked) this.transport.unlock(); else this.transport.lock(); });
     this.#on($('#btn-destroy'), 'click', () => $('#dlg-destroy').showModal());
     this.#on($('#btn-destroy-confirm'), 'click', () => { $('#dlg-destroy').close(); this.transport.destroy(); });

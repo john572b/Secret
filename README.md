@@ -95,3 +95,7 @@ test/        crypto, bout en bout (vrais clients via le vrai serveur), serveur, 
 - Empêcher ou détecter toutes les captures d'écran : impossible pour un site web.
 - Effacer des copies déjà faites par des participants.
 - Protéger contre un participant légitime malveillant ou un appareil compromis.
+
+## Licence
+
+MIT, voir [`LICENSE`](LICENSE). Code source : https://github.com/john572b/Secret
