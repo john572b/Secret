@@ -6,7 +6,6 @@ import * as C from './crypto.js';
 import { Session, Status, MAX_FILE_BYTES } from './protocol.js';
 import { Transport, wireSession } from './transport.js';
 import { watchCaptureEvents } from './capture.js';
-import { showWatermark } from './watermark.js';
 import { $, el, toast, copyText, formatBytes, formatTime, safeFileName, IMAGE_TYPES } from './ui.js';
 
 const pseudonym = (index) => `Participant-${index}`;
@@ -25,7 +24,6 @@ export class ChatView {
     this.locked = false;
     this.blobUrls = [];
     this.stopCapture = null;
-    this.stopWatermark = null;
     this.listeners = [];
     this.ended = false;
   }
@@ -36,7 +34,6 @@ export class ChatView {
     this.#bindUi();
     $('#messages').replaceChildren();
     $('#chat-session').textContent = `· ${this.roomId.slice(0, 6)}…`;
-    this.sessionCode = (await this.#sessionCode());
     await this.#connect();
   }
 
@@ -82,8 +79,6 @@ export class ChatView {
     $('#btn-lock').hidden = !this.owner;
     $('#btn-destroy').hidden = !this.owner;
     this.pseudonym = pseudonym(w.index);
-    this.stopWatermark?.();
-    this.stopWatermark = showWatermark({ pseudonym: this.pseudonym, sessionCode: this.sessionCode });
     this.#system(`Vous êtes ${this.pseudonym}. ${this.owner ? 'Vous êtes le propriétaire de ce chat.' : ''}`);
     if (!this.stopCapture) {
       this.stopCapture = watchCaptureEvents(() => {
@@ -279,7 +274,6 @@ export class ChatView {
   dispose() {
     clearInterval(this.pingTimer);
     this.stopCapture?.(); this.stopCapture = null;
-    this.stopWatermark?.(); this.stopWatermark = null;
     for (const u of this.blobUrls) URL.revokeObjectURL(u);
     this.blobUrls = [];
     $('#messages').replaceChildren();
@@ -310,11 +304,6 @@ export class ChatView {
     b.append(document.createTextNode(text + ' '));
     if (retry) b.append(el('button', { type: 'button', class: 'btn small', text: 'Reconnecter', onclick: () => this.#reconnect() }));
     b.hidden = false;
-  }
-
-  async #sessionCode() {
-    const h = new Uint8Array(await crypto.subtle.digest('SHA-256', C.utf8.encode(this.roomId)));
-    return C.toHex(h.subarray(0, 2)).toUpperCase();
   }
 
   async #showSecurity() {

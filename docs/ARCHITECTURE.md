@@ -271,7 +271,7 @@ photos, enregistrements ou fichiers déjà téléchargés par des participants.
 | Personne ayant le lien mais pas le code | ✅ | peut rejoindre le réseau, apparaît « non vérifié », ne déchiffre rien |
 | Compromission ultérieure du lien/du code | ✅ pour le passé | les clés d'époque sont enveloppées avec des clés ECDH éphémères détruites : un enregistrement du trafic ne devient pas déchiffrable (forward secrecy vis‑à‑vis du secret partagé) |
 | Participant légitime malveillant | ❌ | il peut tout lire et tout copier : c'est inhérent à toute messagerie |
-| Capture d'écran / photo | ❌ | détection partielle au mieux, dissuasion par filigrane |
+| Capture d'écran / photo | ❌ | détection partielle au mieux, aucune dissuasion visuelle |
 | Navigateur / appareil compromis | ❌ | hors périmètre |
 | Force brute sur le code supplémentaire | ✅ partiel | PBKDF2 600 000 itérations ; limitation de débit ; mais un code court reste faible : le code est un second facteur, pas le secret principal |
 
@@ -281,8 +281,8 @@ photos, enregistrements ou fichiers déjà téléchargés par des participants.
    fiable une capture. Seuls les événements exposés par le navigateur (touche
    Impr. écran, raccourcis macOS lorsqu'ils parviennent à la page) déclenchent
    une notification aux autres participants. Une photo prise avec un autre
-   appareil est indétectable ; le filigrane individuel sert uniquement à la
-   dissuasion et à l'identification d'une fuite.
+   appareil est indétectable. Aucun filigrane n'est affiché (choix produit : il
+   ne bloque rien et n'offre qu'une dissuasion symbolique).
 2. **Pas d'historique** : un participant qui arrive après un message ne le
    recevra jamais. C'est une conséquence voulue de l'absence de stockage.
 3. **Fragment d'URL** : le secret du lien reste dans l'historique du navigateur

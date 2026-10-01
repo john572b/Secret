@@ -7,7 +7,7 @@ Messagerie privée et éphémère, chiffrée de bout en bout dans le navigateur.
 - Aucun stockage : sessions en mémoire, détruites à la demande, à l'expiration ou lorsqu'elles restent vides.
 - Code de chiffrement supplémentaire et clé personnelle optionnels, jamais transmis au serveur.
 - Verrouillage des nouvelles connexions, destruction immédiate, rotation de clé à chaque départ.
-- Filigrane individuel, notification des événements de capture réellement détectables.
+- Notification des événements de capture réellement détectables, sans fausse promesse.
 - Indicateur « 🟢 Chiffré de bout en bout » affiché uniquement lorsque la clé de groupe est établie.
 
 Documentation : [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (protocole, hypothèses, limites) et la page publique `/security`.
